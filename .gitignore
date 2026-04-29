@@ -1,0 +1,23 @@
+# --- Python cache ---
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.egg-info/
+
+# --- Jupyter Notebook checkpoints ---
+.ipynb_checkpoints/
+
+# --- VSCode virtual documents ---
+.virtual_documents/
+
+# --- Training outputs ---
+outputs/
+wandb/
+logs/
+checkpoints/
+*.safetensors
+*.pth
+
+# --- Misc ---
+.DS_Store
