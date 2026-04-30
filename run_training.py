@@ -391,6 +391,19 @@ def evaluate(
 if __name__ == '__main__':
     args = get_args()
 
+    # ── Experiment naming ──────────────────────────────────────────────────
+    # If --run_name is explicitly set (not 'auto'), use it as the canonical
+    # experiment name and derive output_dir + wandb_run_name from it.
+    # This lets submit_job.sh pass a unique name so runs never collide.
+    if args.run_name != 'auto':
+        # Only override output_dir when it is still the default sentinel
+        if args.output_dir in ('', './outputs/auto'):
+            args.output_dir = f'./outputs/{args.run_name}'
+        # Keep wandb in sync
+        if args.wandb_run_name == 'auto':
+            args.wandb_run_name = args.run_name
+    # ──────────────────────────────────────────────────────────────────────
+
     utils.setup_run_name(args)
     if args.output_dir:
         Path(args.output_dir).mkdir(parents=True, exist_ok=True)
