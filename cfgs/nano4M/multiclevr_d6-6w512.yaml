@@ -1,7 +1,11 @@
-# Designed to be run on 2xL40-4*GB GPUs
-
-run_name: auto # Auto-generate a run name
-output_dir: ./outputs/auto # Set to auto to use the run_name
+# cfgs/nano4M/baseline/multiclevr_d6-6w512.yaml
+# BASELINE — unmodified nano4M. Run this first to get your reference numbers.
+#
+# Submit:
+#   bash scripts/submit_job.sh cfgs/nano4M/baseline/multiclevr_d6-6w512.yaml baseline 2 $WANDB_API_KEY
+ 
+run_name: baseline
+output_dir: ./outputs/baseline
 
 # Global variables used throughout the config
 global_vars:
@@ -31,9 +35,9 @@ save_ckpt_freq: 1000 # in millions of tokens
 
 # Logging
 log_wandb: True
-wandb_project: COM304_nano4M # wandb project name
-wandb_entity: epfl-com304 # Set to your wandb username
-wandb_run_name: auto # Set to auto to use the run_name
+wandb_project: COM304_nano4M
+wandb_entity: epfl-com304-group16
+wandb_run_name: baseline           # ← matches run_name, set automatically by submit_job.sh
 
 # Model config
 model_config:
