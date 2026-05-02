@@ -41,6 +41,39 @@ class LayerNorm(nn.Module):
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         return nn.functional.layer_norm(x, self.normalized_shape, self.weight, self.bias, eps=self.eps)
 
+class SwiGLU(nn.Module):
+    """
+        SwiGLU feed-forward layer.
+        
+        Args:
+            in_features: Number of input features.
+            hidden_features: Number of hidden features used inside the gated FFN.
+                Defaults to in_features if not provided.
+            out_features: Number of output features.
+                Defaults to in_features if not provided.
+            bias: Whether to include bias in the linear layers.
+    """
+    def __init__(
+        self,
+        in_features: int,
+        hidden_features: Optional[int] = None,
+        out_features: Optional[int] = None,
+        bias: bool = False,
+    ):
+        super().__init__()
+        out_features = out_features or in_features
+        hidden_features = hidden_features or in_features
+
+        self.gate_proj = nn.Linear(in_features, hidden_features, bias=bias)
+        self.value_proj = nn.Linear(in_features, hidden_features, bias=bias)
+        self.out_proj = nn.Linear(hidden_features, out_features, bias=bias)
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        gate = F.silu(self.gate_proj(x))
+        value = self.value_proj(x)
+        x = gate * value
+        x = self.out_proj(x)
+        return x
 
 class Mlp(nn.Module):
     """
@@ -200,13 +233,14 @@ class Block(nn.Module):
         mlp_ratio: Ratio of MLP hidden dimension to transformer dimension
         use_bias: Whether to include bias in the QKV, attention output projection and MLP layers
     """
-    def __init__(self, dim: int, head_dim: int = 64, mlp_ratio: float = 4., use_bias: bool = False):
+    def __init__(self, dim: int, head_dim: int = 64, mlp_ratio: float = 4., use_bias: bool = False, use_swiglu: bool = False):
         super().__init__()
         self.norm1 = LayerNorm(dim, bias=use_bias)
         self.attn = Attention(dim, head_dim=head_dim, qkv_bias=use_bias, proj_bias=use_bias)
         self.norm2 = LayerNorm(dim, bias=use_bias)
         mlp_hidden_dim = int(dim * mlp_ratio)
-        self.mlp = Mlp(dim, mlp_hidden_dim, bias=use_bias)
+        if use_swiglu: self.mlp = SwiGLU(in_features=dim, hidden_features=mlp_hidden_dim, out_features=dim, bias=use_bias)
+        else: self.mlp = Mlp(in_features=dim, hidden_features=mlp_hidden_dim, out_features=dim, bias=use_bias)
 
     def forward(self, x: torch.Tensor, mask: Optional[torch.Tensor] = None) -> torch.Tensor:
         
@@ -231,7 +265,7 @@ class DecoderBlock(nn.Module):
         mlp_ratio: Ratio of MLP hidden dimension to transformer dimension
         use_bias: Whether to include bias in the QKV, attention output projection and MLP layers
     """
-    def __init__(self, dim: int, head_dim: int = 64, mlp_ratio: float = 4., use_bias: bool = False):
+    def __init__(self, dim: int, head_dim: int = 64, mlp_ratio: float = 4., use_bias: bool = False, use_swiglu: bool = False):
         super().__init__()
         self.norm1 = LayerNorm(dim, bias=use_bias)
         self.query_norm = LayerNorm(dim, bias=use_bias)
@@ -242,7 +276,8 @@ class DecoderBlock(nn.Module):
         self.cross_attn = CrossAttention(dim, head_dim=head_dim, qkv_bias=use_bias, proj_bias=use_bias)
 
         mlp_hidden_dim = int(dim * mlp_ratio)
-        self.mlp = Mlp(dim, mlp_hidden_dim, bias=use_bias)
+        if use_swiglu: self.mlp = SwiGLU( in_features=dim, hidden_features=mlp_hidden_dim, out_features=dim, bias=use_bias)
+        else: self.mlp = Mlp(in_features=dim, hidden_features=mlp_hidden_dim, out_features=dim, bias=use_bias)
 
     def forward(self, 
             x: torch.Tensor, 
@@ -287,12 +322,13 @@ class TransformerTrunk(nn.Module):
             head_dim: int = 64,
             mlp_ratio: float = 4.0,
             use_bias: bool = False,
+            use_swiglu: bool = False
         ):
         super().__init__()
 
         # Create a list of transformer blocks and wrap inside nn.ModuleList
         self.blocks = nn.ModuleList([
-            Block(dim=dim, head_dim=head_dim, mlp_ratio=mlp_ratio, use_bias=use_bias) 
+            Block(dim=dim, head_dim=head_dim, mlp_ratio=mlp_ratio, use_bias=use_bias, use_swiglu=use_swiglu) 
             for _ in range(depth)
         ])
     
@@ -322,12 +358,13 @@ class TransformerDecoderTrunk(nn.Module):
             head_dim: int = 64,
             mlp_ratio: float = 4.0,
             use_bias: bool = False,
+            use_swiglu: bool = False
         ):
         super().__init__()
 
         # Create a list of transformer decoder blocks and wrap inside nn.ModuleList
         self.blocks = nn.ModuleList([
-            DecoderBlock(dim=dim, head_dim=head_dim, mlp_ratio=mlp_ratio, use_bias=use_bias)
+            DecoderBlock(dim=dim, head_dim=head_dim, mlp_ratio=mlp_ratio, use_bias=use_bias, use_swiglu=use_swiglu)
             for _ in range(depth)
         ])
     
