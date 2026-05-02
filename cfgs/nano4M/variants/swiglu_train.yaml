@@ -7,11 +7,11 @@
 # 4. Submit: bash scripts/submit_job.sh cfgs/nano4M/variants/my_variant.yaml rope_v1 2 $WANDB_API_KEY
 # ─────────────────────────────────────────────────────────────────────
 
-run_name: swiglu_debug          # ← CHANGE THIS — must be unique across all runs
-output_dir: ./outputs/swiglu_debug   # ← CHANGE THIS to match run_name
+run_name: swiglu_train         # ← CHANGE THIS — must be unique across all runs
+output_dir: ./outputs/swiglu_train   # ← CHANGE THIS to match run_name
 
 global_vars:
-  batch_size: 1
+  batch_size: 256
   modalities: ["tok_rgb@256", "tok_depth@256", "tok_normal@256", "scene_desc"]
   vocab_sizes: [64000, 64000, 64000, 50304]
   max_seq_lens: [256, 256, 256, 256]
@@ -33,10 +33,10 @@ dtype: bf16
 eval_freq: 100
 save_ckpt_freq: 1000
 
-log_wandb: False
+log_wandb: True
 wandb_project: COM304_nano4M
 wandb_entity: epfl-com304-group16
-wandb_run_name: swiglu_debug    # ← keep in sync with run_name (auto-set by submit_job.sh)
+wandb_run_name: swiglu_train    # ← keep in sync with run_name (auto-set by submit_job.sh)
 
 model_config:
   _target_: nanofm.models.fourmUpgraded.FourMUpgraded
