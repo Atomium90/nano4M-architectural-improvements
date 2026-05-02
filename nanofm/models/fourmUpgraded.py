@@ -38,7 +38,7 @@ def build_1d_sincos_posemb(max_len, embed_dim=1024, temperature=10000.):
     return pos_emb
 
 
-class FourM(nn.Module):
+class FourMUpgraded(nn.Module):
     """Simplified 4M definition, in which all modalities are handled in a single unified vocabulary.
 
     Args:
