@@ -87,6 +87,7 @@ class FourMUpgraded(nn.Module):
         padding_idx: int = -100,
         init_std: float = 0.02,
         per_modality_loss_avg: bool = True,
+        init_strategy: str = 'normal',  # 'normal' | 'he' | 'xavier' | 'deepnorm'
         **kwargs,
     ):
         super().__init__()
@@ -118,15 +119,15 @@ class FourMUpgraded(nn.Module):
         # Initialize modality embeddings
         self.enc_mod_emb = nn.Embedding(self.num_modalities, dim)
         self.dec_mod_emb = nn.Embedding(self.num_modalities, dim)
-                
+
         # Initialize Transformer encoder and decoder trunks
         self.encoder = TransformerTrunk(
             dim=dim, depth=enc_depth, head_dim=head_dim, mlp_ratio=mlp_ratio, use_bias=use_bias
-        ) 
-        
+        )
+
         self.decoder = TransformerDecoderTrunk(
             dim=dim, depth=dec_depth, head_dim=head_dim, mlp_ratio=mlp_ratio, use_bias=use_bias
-        ) 
+        )
 
         # Initialize encoder -> decoder context projection
         self.dec_context_proj = nn.Linear(dim, dim, bias=use_bias)
@@ -140,6 +141,9 @@ class FourMUpgraded(nn.Module):
 
         # Weight initialization
         self.init_std = init_std
+        self.init_strategy = init_strategy
+        self.enc_depth = enc_depth
+        self.dec_depth = dec_depth
         self.initialize_weights()
 
     @property
@@ -147,17 +151,85 @@ class FourMUpgraded(nn.Module):
         return next(self.parameters()).device
 
     def initialize_weights(self) -> None:
-        """Initialize the weights of the model.""" 
-        self.apply(self._init_weights) # Initialize nn.Linear and nn.Embedding
-        nn.init.constant_(self.to_logits.weight, 0) # Zero-init the output projection
+        """Initialize the weights of the model using the chosen strategy.
 
-    def _init_weights(self, module) -> None:
+        Strategies:
+          'normal'   — Gaussian N(0, init_std). Baseline, same as original fourm.py.
+          'he'       — Kaiming Normal (He init). std = sqrt(2/fan_in). Designed for
+                       ReLU/GELU/SiLU activations; preserves signal variance through
+                       non-linearities that zero out ~half the neurons.
+          'xavier'   — Xavier Normal (Glorot init). std = sqrt(2/(fan_in+fan_out)).
+                       Compromise between forward and backward variance preservation.
+          'deepnorm' — Xavier everywhere, then rescale residual-branch output projections
+                       (attn_out_proj, last MLP linear) by beta = (8*N)^{-1/4} where
+                       N = enc_depth + dec_depth. Limits update accumulation in deep nets.
+                       From Wang et al., "DeepNet" arXiv:2203.00555.
+        """
+        strategy = self.init_strategy
+
+        if strategy == 'normal':
+            self.apply(self._init_normal)
+        elif strategy == 'he':
+            self.apply(self._init_he)
+        elif strategy == 'xavier':
+            self.apply(self._init_xavier)
+        elif strategy == 'deepnorm':
+            self.apply(self._init_xavier)  # Step 1: Xavier everywhere
+            N = self.enc_depth + self.dec_depth
+            beta = (8 * N) ** -0.25  # Step 2: rescale residual branch outputs
+            self._apply_deepnorm_beta(beta)
+        else:
+            raise ValueError(
+                f"Unknown init_strategy '{strategy}'. "
+                "Choose from: 'normal', 'he', 'xavier', 'deepnorm'."
+            )
+
+        # Always zero-init the final logits head regardless of strategy.
+        # Ensures near-zero outputs at step 0, stabilizing the first training steps.
+        nn.init.constant_(self.to_logits.weight, 0)
+
+    def _init_normal(self, module) -> None:
+        """Gaussian N(0, init_std) — baseline behavior."""
         if isinstance(module, nn.Linear):
             nn.init.normal_(module.weight, mean=0.0, std=self.init_std)
             if module.bias is not None:
                 nn.init.zeros_(module.bias)
         elif isinstance(module, nn.Embedding):
             nn.init.normal_(module.weight, mean=0.0, std=self.init_std)
+
+    def _init_he(self, module) -> None:
+        """Kaiming Normal (He) — std = sqrt(2 / fan_in)."""
+        if isinstance(module, nn.Linear):
+            nn.init.kaiming_normal_(module.weight, mode='fan_in', nonlinearity='relu')
+            if module.bias is not None:
+                nn.init.zeros_(module.bias)
+        elif isinstance(module, nn.Embedding):
+            # Embeddings have no activation — fall back to small normal
+            nn.init.normal_(module.weight, mean=0.0, std=self.init_std)
+
+    def _init_xavier(self, module) -> None:
+        """Xavier Normal (Glorot) — std = sqrt(2 / (fan_in + fan_out))."""
+        if isinstance(module, nn.Linear):
+            nn.init.xavier_normal_(module.weight)
+            if module.bias is not None:
+                nn.init.zeros_(module.bias)
+        elif isinstance(module, nn.Embedding):
+            nn.init.normal_(module.weight, mean=0.0, std=self.init_std)
+
+    def _apply_deepnorm_beta(self, beta: float) -> None:
+        """Rescale output projections of residual branches by beta.
+
+        Targets:
+          - attn_out_proj in every self-attention and cross-attention block
+          - l2 in every baseline Mlp block (the second / output linear)
+        """
+        for module in self.modules():
+            if hasattr(module, 'attn_out_proj') and isinstance(module.attn_out_proj, nn.Linear):
+                with torch.no_grad():
+                    module.attn_out_proj.weight.mul_(beta)
+            if hasattr(module, 'l2') and isinstance(module.l2, nn.Linear):
+                with torch.no_grad():
+                    module.l2.weight.mul_(beta)
 
     def get_num_params(self, non_embedding=True) -> int:
         """
@@ -190,12 +262,12 @@ class FourMUpgraded(nn.Module):
             enc_input_tokens: LongTensor of shape (B, N) with encoder input token IDs.
             enc_input_modalities: LongTensor of shape (B, N) with IDs specifying which modality
                 is input at each position.
-            enc_input_positions: LongTensor of shape (B, N) with encoder input positions, 
+            enc_input_positions: LongTensor of shape (B, N) with encoder input positions,
                 used to get the corresponding positional embeddings.
             enc_pad_mask: Boolean tensor of shape (B, N) where True indicates a valid token,
                 and False indicates a padded token.
         Returns:
-            Encoded tokens tensor of shape (B, N, D) and corresponding positional embeddings 
+            Encoded tokens tensor of shape (B, N, D) and corresponding positional embeddings
             tensor of shape (B, N, D).
         """
         B, N = enc_input_tokens.shape
@@ -219,7 +291,7 @@ class FourMUpgraded(nn.Module):
         # Hint: Don't forget to pass the encoder attention mask `enc_pad_attn_mask`.
         x = self.encoder(x, mask=enc_pad_attn_mask)
 
-        # TODO: Pass to the encoder output normalization layer
+        # Pass to the encoder output normalization layer
         x = self.enc_norm(x)
 
         return x, enc_posembs
@@ -266,7 +338,7 @@ class FourMUpgraded(nn.Module):
         dec_pad_sa_mask = repeat(dec_pad_mask, 'b m -> b n m', n=M) if dec_pad_mask is not None else None
         dec_pad_xa_mask = repeat(enc_pad_mask, 'b n -> b m n', m=M) if enc_pad_mask is not None else None
 
-        # Project context `enc_context` to the decoder dimension using `dec_context_proj`. Shape: [B, N, D] 
+        # Project context `enc_context` to the decoder dimension using `dec_context_proj`. Shape: [B, N, D]
         context = self.dec_context_proj(enc_context)
 
         # Add the encoder positional embeddings `enc_posembs`. Shape: [B, N, D]
@@ -282,7 +354,7 @@ class FourMUpgraded(nn.Module):
         return x
 
     def forward_model(
-            self, 
+            self,
             enc_input_tokens: torch.LongTensor,
             enc_input_modalities: torch.LongTensor,
             enc_input_positions: torch.LongTensor,
@@ -290,7 +362,7 @@ class FourMUpgraded(nn.Module):
             dec_input_positions: torch.LongTensor,
             enc_pad_mask: Optional[torch.BoolTensor] = None,
             dec_pad_mask: Optional[torch.BoolTensor] = None,
-        ) -> torch.Tensor:
+    ) -> torch.Tensor:
 
         # Encoder forward pass
         enc_x, enc_posembs = self.forward_encoder(enc_input_tokens, enc_input_modalities, enc_input_positions, enc_pad_mask)
@@ -304,13 +376,13 @@ class FourMUpgraded(nn.Module):
         return logits
 
     def compute_ce_loss(
-            self, 
-            logits: torch.Tensor, 
-            target_seq: torch.LongTensor, 
+            self,
+            logits: torch.Tensor,
+            target_seq: torch.LongTensor,
             padding_idx: int = -100,
             per_modality_loss_avg: bool = False,
             modality_indices: Optional[torch.Tensor] = None,
-        ) -> Tuple[torch.Tensor, Dict[str, torch.Tensor]]:
+    ) -> Tuple[torch.Tensor, Dict[str, torch.Tensor]]:
         """
         Compute the cross-entropy loss given logits and target labels, ignoring padding tokens.
 
@@ -348,7 +420,6 @@ class FourMUpgraded(nn.Module):
 
         return loss, per_modality_losses
 
-
     def forward(self, data_dict: Dict[str, Any]) -> Tuple[torch.Tensor, Dict[str, Any]]:
         """
         Forward pass through the model.
@@ -368,9 +439,9 @@ class FourMUpgraded(nn.Module):
             enc_pad_mask=data_dict.get(self.enc_pad_mask_read_key, None),
             dec_pad_mask=data_dict.get(self.dec_pad_mask_read_key, None),
         )
-        
+
         # Compute loss
-        loss, modality_metrics =  self.compute_ce_loss(
+        loss, modality_metrics = self.compute_ce_loss(
             logits=logits,
             target_seq=data_dict[self.dec_tokens_read_key],
             padding_idx=self.padding_idx,
@@ -382,7 +453,7 @@ class FourMUpgraded(nn.Module):
 
     def get_unmasking_schedule(self, total_tokens: int, num_steps: int = 8) -> List[int]:
         """
-        Generates a schedule for unmasking tokens at inference time. We only added a 
+        Generates a schedule for unmasking tokens at inference time. We only added a
         constant schedule for now, but feel free to add more schedules, e.g. a cosine schedule!
         This can be used for both "ROAR" and MaskGIT-style decoding.
 
@@ -395,7 +466,7 @@ class FourMUpgraded(nn.Module):
         assert total_tokens > 0, "No tokens to unmask in the input sequence."
         assert num_steps > 0, "Number of steps should be greater than zero."
         assert num_steps <= total_tokens, "Number of steps should be less than or equal to the total number of tokens to unmask."
-        
+
         tokens_per_step = total_tokens // num_steps
         remainder = total_tokens % num_steps
         schedule = [tokens_per_step] * num_steps
@@ -412,13 +483,13 @@ class FourMUpgraded(nn.Module):
             enc_input_positions: torch.LongTensor,
             enc_input_modalities: torch.LongTensor,
             target_mod: str,
-            num_steps: int = 8, 
-            temp: float = 1.0, 
-            top_p: float = 0.0, 
+            num_steps: int = 8,
+            temp: float = 1.0,
+            top_p: float = 0.0,
             top_k: float = 0.0,
-        ) -> Tuple[torch.LongTensor, torch.LongTensor, torch.LongTensor, torch.LongTensor]:
+    ) -> Tuple[torch.LongTensor, torch.LongTensor, torch.LongTensor, torch.LongTensor]:
         """
-        Generate one modality through iterative unmasking using the Random Order Auto Regressive 
+        Generate one modality through iterative unmasking using the Random Order Auto Regressive
         (ROAR) decoding scheme introduced in 4M.
 
         Args:
@@ -450,9 +521,9 @@ class FourMUpgraded(nn.Module):
         # There are n_tokens_target positions to predict, and we will unmask them in `num_steps` steps.
         # The order in which we unmask the tokens is arbitrary, but here we will use a random order.
         # That means, we will randomly shuffle the positions from 0 to n_tokens_target - 1, and then
-        # split them into `num_steps` steps. 
+        # split them into `num_steps` steps.
         shuffled_positions = torch.randperm(n_tokens_target, device=device)
-        # dec_input_positions_list is a list of position indices of shape (1, k) for each step. 
+        # dec_input_positions_list is a list of position indices of shape (1, k) for each step.
         # Together, they should contain all the positions from 0 to n_tokens_target - 1 exactly once.
         dec_input_positions_list = []
         start = 0
@@ -460,14 +531,14 @@ class FourMUpgraded(nn.Module):
             step_positions = shuffled_positions[start:start + k].unsqueeze(0)
             dec_input_positions_list.append(step_positions)
             start += k
-        
+
         for step, k in enumerate(schedule):
             # Select the k positions to predict for this step
             dec_input_positions = dec_input_positions_list[step]
             # Create a tensor of k IDs specifying the target modality
             dec_input_modalities = target_mod_index * torch.ones(1, k, device=device, dtype=torch.long)
 
-            # Forward pass through the model to get the next tokens' logits. 
+            # Forward pass through the model to get the next tokens' logits.
             # Select the 0-th element to get shape: [k, vocab_size]
             predicted_logits = self.forward_model(
                 enc_input_tokens=enc_input_tokens,
@@ -490,10 +561,10 @@ class FourMUpgraded(nn.Module):
             enc_input_tokens = torch.cat([enc_input_tokens, samples], dim=1)
             enc_input_positions = torch.cat([enc_input_positions, dec_input_positions], dim=1)
             enc_input_modalities = torch.cat([enc_input_modalities, dec_input_modalities], dim=1)
-                   
+
         # Select the predicted tokens for the target modality and unshuffle them
         pred_tokens = enc_input_tokens[enc_input_modalities == target_mod_index]
         indices = enc_input_positions[enc_input_modalities == target_mod_index]
         pred_tokens = pred_tokens[indices.argsort()].unsqueeze(0)
-        
+
         return pred_tokens, enc_input_tokens, enc_input_positions, enc_input_modalities
