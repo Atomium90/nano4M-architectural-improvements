@@ -87,6 +87,7 @@ class FourMUpgraded(nn.Module):
         padding_idx: int = -100,
         init_std: float = 0.02,
         per_modality_loss_avg: bool = True,
+        use_swiglu: bool = False,
         **kwargs,
     ):
         super().__init__()
@@ -120,13 +121,9 @@ class FourMUpgraded(nn.Module):
         self.dec_mod_emb = nn.Embedding(self.num_modalities, dim)
                 
         # Initialize Transformer encoder and decoder trunks
-        self.encoder = TransformerTrunk(
-            dim=dim, depth=enc_depth, head_dim=head_dim, mlp_ratio=mlp_ratio, use_bias=use_bias
-        ) 
-        
-        self.decoder = TransformerDecoderTrunk(
-            dim=dim, depth=dec_depth, head_dim=head_dim, mlp_ratio=mlp_ratio, use_bias=use_bias
-        ) 
+        self.encoder = TransformerTrunk(dim=dim, depth=enc_depth, head_dim=head_dim, mlp_ratio=mlp_ratio, use_bias=use_bias, use_swiglu=use_swiglu)
+
+        self.decoder = TransformerDecoderTrunk(dim=dim, depth=dec_depth, head_dim=head_dim, mlp_ratio=mlp_ratio, use_bias=use_bias, use_swiglu=use_swiglu)
 
         # Initialize encoder -> decoder context projection
         self.dec_context_proj = nn.Linear(dim, dim, bias=use_bias)
