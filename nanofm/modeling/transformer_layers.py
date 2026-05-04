@@ -18,12 +18,68 @@
 # --------------------------------------------------------
 
 from typing import Optional
+import math
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from einops import rearrange
 
+def rotate_half(x):
+    # splits last dim in half and swaps signs
+    x1 = x[..., : x.shape[-1] // 2]
+    x2 = x[..., x.shape[-1] // 2 :]
+    return torch.cat([-x2, x1], dim=-1)
 
+
+def apply_rope(q, k):
+    """
+    q, k: [B, H, L, D]
+    applies rotary embedding on last dim
+    """
+    B, H, L, D = q.shape
+    device = q.device
+
+    half_dim = D // 2
+    inv_freq = 1.0 / (10000 ** (torch.arange(0, half_dim, device=device).float() / half_dim))
+
+    positions = torch.arange(L, device=device).float()
+    freqs = torch.einsum("i,j->ij", positions, inv_freq)  # [L, D/2]
+
+    emb = torch.cat([freqs, freqs], dim=-1)  # [L, D]
+    emb = emb[None, None, :, :]  # [1,1,L,D]
+
+    cos = emb.cos()
+    sin = emb.sin()
+
+    q_rot = (q * cos) + (rotate_half(q) * sin)
+    k_rot = (k * cos) + (rotate_half(k) * sin)
+
+    return q_rot, k_rot
+
+def build_alibi_bias(num_heads: int, seq_len: int, device):
+    """
+    Simple ALiBi (no fancy masking logic, works with full + masked attention).
+    Produces shape: [1, num_heads, seq_len, seq_len]
+    """
+    def get_slopes(n):
+        # classic ALiBi slope construction (simplified stable version)
+        def get_pow2_slopes(n):
+            start = 2 ** (-(2 ** -(math.log2(n) - 3)))
+            ratio = start
+            return [start * (ratio ** i) for i in range(n)]
+
+        # fallback safe slopes
+        return get_pow2_slopes(n)
+
+    slopes = torch.tensor(get_slopes(num_heads), device=device)
+    arange = torch.arange(seq_len, device=device)
+
+    # distance matrix [L, L]
+    dist = arange[None, :] - arange[:, None]  # (query - key)
+    dist = -torch.abs(dist).unsqueeze(0).unsqueeze(0)  # [1,1,L,L]
+
+    bias = slopes[:, None, None] * dist  # [H, L, L]
+    
 class LayerNorm(nn.Module):
     """Custom implementation of LayerNorm with the option to disable the bias term."""
     def __init__(self, normalized_shape: int, eps: float = 1e-6, bias: bool = False):
@@ -93,6 +149,8 @@ class Attention(nn.Module):
         self.QKV_layer = nn.Linear(dim, 3*dim, bias=qkv_bias)
 
         self.attn_out_proj = nn.Linear(dim, dim, bias=proj_bias)
+        self.pos_encoding = "none"
+        self.max_seq_len = None
 
     def forward(self, x: torch.Tensor, mask: Optional[torch.Tensor] = None) -> torch.Tensor:
         B, L, D = x.shape # Batch size, sequence length, and dimension
@@ -102,12 +160,23 @@ class Attention(nn.Module):
         q, k, v = qkv.chunk(3, dim=-1)
         q = rearrange(q, "b l (nh hd) -> b nh l hd", nh=self.num_heads)
         k = rearrange(k, "b l (nh hd) -> b nh l hd", nh=self.num_heads)
-        v = rearrange(v, "b l (nh hd) -> b nh l hd", nh=self.num_heads)
 
+        if self.pos_encoding == "rope":
+            q, k = apply_rope(q, k)
+
+        v = rearrange(v, "b l (nh hd) -> b nh l hd", nh=self.num_heads)
+       
         # Compute the attention matrix (pre softmax) and scale it by 1/sqrt(d_k). It should be of shape [B num_heads L L].
         # Hint: Use the already defined self.scale
+
+
         attn = q @ k.transpose(-1, -2)
         attn = attn * self.scale
+
+        if self.pos_encoding == "alibi":
+            B, H, L, _ = attn.shape
+            bias = build_alibi_bias(H, L, attn.device)
+            attn = attn + bias
 
         if mask is not None:
             mask = rearrange(mask, "b n m -> b 1 n m") # Unsqueeze for multi-head attention

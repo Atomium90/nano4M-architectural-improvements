@@ -87,6 +87,7 @@ class FourM(nn.Module):
         padding_idx: int = -100,
         init_std: float = 0.02,
         per_modality_loss_avg: bool = True,
+        pos_encoding: str = "none",
         **kwargs,
     ):
         super().__init__()
