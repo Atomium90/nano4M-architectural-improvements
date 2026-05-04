@@ -111,25 +111,47 @@ bash scripts/run_local.sh cfgs/nano4M/variants/my_variant.yaml my_variant_debug 
 
 ## Evaluating a checkpoint
 
+Two wrapper scripts mirror the `submit_job.sh` interface:
+
+| Script | When to use |
+|---|---|
+| `eval_job.sh` | Interactive session / single eval — runs directly, logs to terminal |
+| `eval_job_slurm.sh` | Batch mode — submits to SLURM, useful to fire all ablations at once |
+
 ```bash
-python scripts/eval_checkpoint.py \
-    --checkpoint outputs/<EXP_NAME>/checkpoint-best.pth \
-    --config     cfgs/nano4M/variants/<name>.yaml
+# Single eval, interactive (runs immediately on current node)
+bash scripts/eval_job.sh rope_v1
+
+# Submit to SLURM queue (one GPU, ~1h time limit)
+bash scripts/eval_job_slurm.sh rope_v1
+
+# Evaluate all ablations in parallel (one sbatch per exp)
+for exp in baseline rope_v1 swiglu_v1 deepnorm_v1; do
+    bash scripts/eval_job_slurm.sh $exp
+done
+
+# Skip FID for a quick loss-only check (~2 min)
+bash scripts/eval_job.sh rope_v1 --skip_fid
+
+# Override FID sample count
+bash scripts/eval_job.sh rope_v1 --fid_samples 200
 ```
 
-This generates `outputs/<EXP_NAME>/eval.log` containing:
+Both scripts resolve `checkpoint` and `config` automatically from `<EXP_NAME>`.
 
-- Model info (param count, architecture, variant keys)
-- Validation cross-entropy loss (per-token, per-modality)
+The report is saved to **`eval/<EXP_NAME>/report.log`** and contains:
+
+- Model info (param count, architecture flags)
+- Validation cross-entropy loss — per-token and per-modality
 - Perplexity
-- Throughput (tokens/sec)
-- Peak GPU memory
-- Gradient norm snapshot
+- **FID score** on generated RGB images (conditioned on `scene_desc` by default)
+- Throughput (tokens/sec), peak GPU memory, gradient norm
 
-Optional FID computation (slow):
-```bash
-python scripts/eval_checkpoint.py ... --fid
-```
+SLURM logs → `slurm_logs/<EXP_NAME>_eval_<jobid>.out/.err`
+
+> **Cosmos tokenizer**: auto-downloaded on first run to
+> `/tmp/nvidia_<your_username>/Cosmos-0.1-Tokenizer-DI16x16` (private per user,
+> no permission conflicts). Pass `--tokenizer_dir` to override.
 
 ---
 
