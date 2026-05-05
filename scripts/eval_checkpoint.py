@@ -49,7 +49,10 @@ import yaml
 import omegaconf
 from hydra.utils import instantiate
 
-from nanofm.utils.checkpoint import load_model_from_safetensors
+try:
+    from safetensors.torch import load_file as load_safetensors
+except ImportError:
+    load_safetensors = None
 
 
 # ── CLI ──────────────────────────────────────────────────────────────────────
@@ -354,9 +357,22 @@ def main():
         out_path = Path("eval") / exp_name / "report.log"
     out_path.parent.mkdir(parents=True, exist_ok=True)
 
-    # Load model
+    # Load model — instantiate from yaml config, then load weights from safetensors.
+    # This avoids relying on the _target_ stored in checkpoint metadata, which can
+    # fail if the module path changed (e.g. fourmUpgraded vs fourm_upgraded).
     print(f"[eval] loading model …")
-    model = load_model_from_safetensors(args.checkpoint, device=device)
+    model = instantiate(cfg["model_config"]).to(device)
+    ckpt_path = Path(args.checkpoint)
+    if ckpt_path.suffix == ".safetensors":
+        if load_safetensors is None:
+            raise ImportError("safetensors is not installed: pip install safetensors")
+        state_dict = load_safetensors(str(ckpt_path), device=device)
+        model.load_state_dict(state_dict, strict=True)
+    else:
+        # Fallback: plain .pth checkpoint
+        ckpt = torch.load(str(ckpt_path), map_location=device)
+        state = ckpt.get("model", ckpt)
+        model.load_state_dict(state, strict=True)
     model.eval()
     print(f"[eval] {count_params(model) / 1e6:.2f}M params")
 

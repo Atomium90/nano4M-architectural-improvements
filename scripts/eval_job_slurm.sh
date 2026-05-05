@@ -31,15 +31,24 @@ shift   # remaining args are forwarded to eval_checkpoint.py
 CHECKPOINT="outputs/${EXP_NAME}/checkpoint-final.safetensors"
 CONFIG_DIR="cfgs/nano4M/variants"
 
-CONFIG="${CONFIG_DIR}/${EXP_NAME}.yaml"
-if [[ ! -f "${CONFIG}" ]]; then
-    BASE="${EXP_NAME%_v*}"
-    CONFIG="${CONFIG_DIR}/${BASE}.yaml"
+_try_configs=(
+    "${CONFIG_DIR}/${EXP_NAME}.yaml"
+    "cfgs/nano4M/${EXP_NAME}.yaml"
+)
+BASE="${EXP_NAME%_v*}"
+if [[ "${BASE}" != "${EXP_NAME}" ]]; then
+    _try_configs+=(
+        "${CONFIG_DIR}/${BASE}.yaml"
+        "cfgs/nano4M/${BASE}.yaml"
+    )
 fi
-if [[ ! -f "${CONFIG}" ]]; then
+CONFIG=""
+for _c in "${_try_configs[@]}"; do
+    if [[ -f "${_c}" ]]; then CONFIG="${_c}"; break; fi
+done
+if [[ -z "${CONFIG}" ]]; then
     echo "Error: could not find a config for '${EXP_NAME}'."
-    echo "  Tried: ${CONFIG_DIR}/${EXP_NAME}.yaml"
-    echo "  Tried: ${CONFIG_DIR}/${BASE}.yaml"
+    for _c in "${_try_configs[@]}"; do echo "  Tried: ${_c}"; done
     exit 1
 fi
 if [[ ! -f "${CHECKPOINT}" ]]; then

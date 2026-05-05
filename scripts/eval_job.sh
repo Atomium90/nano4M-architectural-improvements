@@ -24,19 +24,30 @@ shift   # remaining args are forwarded to eval_checkpoint.py
 CHECKPOINT="outputs/${EXP_NAME}/checkpoint-final.safetensors"
 CONFIG_DIR="cfgs/nano4M/variants"
 
-# Try to find the matching config: variants/<exp_name>.yaml, else fall back to
-# any yaml whose run_name matches, else ask the user.
-CONFIG="${CONFIG_DIR}/${EXP_NAME}.yaml"
-if [[ ! -f "${CONFIG}" ]]; then
-    # Strip trailing version suffix (e.g. rope_v1 → rope)
-    BASE="${EXP_NAME%_v*}"
-    CONFIG="${CONFIG_DIR}/${BASE}.yaml"
+# Config resolution: check variants/ first, then top-level cfgs/nano4M/,
+# then fall back to stripping version suffix (e.g. init_he_v1 → init_he).
+_try_configs=(
+    "${CONFIG_DIR}/${EXP_NAME}.yaml"
+    "cfgs/nano4M/${EXP_NAME}.yaml"
+)
+BASE="${EXP_NAME%_v*}"
+if [[ "${BASE}" != "${EXP_NAME}" ]]; then
+    _try_configs+=(
+        "${CONFIG_DIR}/${BASE}.yaml"
+        "cfgs/nano4M/${BASE}.yaml"
+    )
 fi
-if [[ ! -f "${CONFIG}" ]]; then
+CONFIG=""
+for _c in "${_try_configs[@]}"; do
+    if [[ -f "${_c}" ]]; then
+        CONFIG="${_c}"
+        break
+    fi
+done
+if [[ -z "${CONFIG}" ]]; then
     echo "Error: could not find a config for '${EXP_NAME}'."
-    echo "  Tried: ${CONFIG_DIR}/${EXP_NAME}.yaml"
-    echo "  Tried: ${CONFIG_DIR}/${BASE}.yaml"
-    echo "  Pass --config explicitly via eval_checkpoint.py directly."
+    for _c in "${_try_configs[@]}"; do echo "  Tried: ${_c}"; done
+    echo "  Pass --config explicitly to eval_checkpoint.py directly."
     exit 1
 fi
 if [[ ! -f "${CHECKPOINT}" ]]; then
