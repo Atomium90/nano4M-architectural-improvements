@@ -411,7 +411,7 @@ def main():
     report = build_report(args, cfg, count_params(model), loss, per_mod,
                           tps, peak_mem, gnorm, fid_score)
     print("\n" + report)
-    out_path.write_text(report + "\n")
+    out_path.write_text(report + "\n", encoding="utf-8")
     print(f"\n[eval] saved → {out_path}")
 
 
