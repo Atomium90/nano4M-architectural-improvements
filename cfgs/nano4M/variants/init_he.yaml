@@ -1,9 +1,9 @@
 # cfgs/nano4M/variants/init_he.yaml
 # Weight initialization experiment: he
-# Submit: bash scripts/submit_job.sh cfgs/nano4M/variants/init_he.yaml init_he 2 $WANDB_API_KEY
+# Submit: bash scripts/submit_job.sh cfgs/nano4M/variants/init_he.yaml
 
-run_name: init_he
-output_dir: ./outputs/init_he
+run_name: auto
+output_dir: ./outputs/auto
 
 global_vars:
   batch_size: 256
@@ -31,7 +31,7 @@ save_ckpt_freq: 1000
 log_wandb: True
 wandb_project: COM304_nano4M
 wandb_entity: epfl-com304-group16
-wandb_run_name: init_he
+wandb_run_name: auto
 
 model_config:
   _target_: nanofm.models.fourmUpgraded.FourMUpgraded

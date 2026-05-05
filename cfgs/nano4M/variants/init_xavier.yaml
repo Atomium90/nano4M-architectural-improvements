@@ -1,9 +1,9 @@
 # cfgs/nano4M/variants/init_xavier.yaml
 # Weight initialization experiment: xavier
-# Submit: bash scripts/submit_job.sh cfgs/nano4M/variants/init_xavier.yaml init_xavier 2 $WANDB_API_KEY
+# Submit: bash scripts/submit_job.sh cfgs/nano4M/variants/init_xavier.yaml
 
-run_name: init_xavier
-output_dir: ./outputs/init_xavier
+run_name: auto
+output_dir: ./outputs/auto
 
 global_vars:
   batch_size: 256
@@ -31,7 +31,7 @@ save_ckpt_freq: 1000
 log_wandb: True
 wandb_project: COM304_nano4M
 wandb_entity: epfl-com304-group16
-wandb_run_name: init_xavier
+wandb_run_name: auto
 
 model_config:
   _target_: nanofm.models.fourmUpgraded.FourMUpgraded
