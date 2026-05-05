@@ -62,6 +62,7 @@ source /work/com-304/new_environment/anaconda3/etc/profile.d/conda.sh
 conda activate nanofm
 
 export OMP_NUM_THREADS=1
+export PYTHONPATH=$PWD
 
 # ── Run ───────────────────────────────────────────────────────────────────────
 

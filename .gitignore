@@ -13,8 +13,9 @@ __pycache__/
 
 # --- Training outputs ---
 outputs/
+eval/
 wandb/
-logs/
+slurm_logs/
 checkpoints/
 *.safetensors
 *.pth

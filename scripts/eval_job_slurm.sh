@@ -77,6 +77,7 @@ sbatch <<EOF
 source /work/com-304/new_environment/anaconda3/etc/profile.d/conda.sh
 conda activate nanofm
 
+export PYTHONPATH=$PWD
 export OMP_NUM_THREADS=1
 
 python scripts/eval_checkpoint.py \\
