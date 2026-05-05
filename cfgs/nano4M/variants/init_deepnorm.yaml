@@ -97,4 +97,4 @@ eval_loader_config:
   pin_memory: True
   shuffle: False
   drop_last: False
-  distributed: True
+  distributed: False
