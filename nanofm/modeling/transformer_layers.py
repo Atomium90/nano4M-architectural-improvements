@@ -18,6 +18,7 @@
 # --------------------------------------------------------
 
 from typing import Optional
+import math
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -111,7 +112,7 @@ class Attention(nn.Module):
 
         if mask is not None:
             mask = rearrange(mask, "b n m -> b 1 n m") # Unsqueeze for multi-head attention
-            # Apply the optional attention mask. Wherever the mask is False, replace the attention 
+            # Apply the optional attention mask. Wherever the mask is False, replace the attention
             # matrix value by negative infinity → zero attention weight after softmax.
             attn = attn.masked_fill(~mask, float('-inf'))
 
@@ -172,7 +173,7 @@ class CrossAttention(nn.Module):
 
         if mask is not None:
             mask = rearrange(mask, "b n m -> b 1 n m") # Unsqueeze for multi-head attention
-            # Apply the optional attention mask. Wherever the mask is False, replace the attention 
+            # Apply the optional attention mask. Wherever the mask is False, replace the attention
             # matrix value by negative infinity → zero attention weight after softmax.
             attn = attn.masked_fill(~mask, float('-inf'))
 
@@ -199,8 +200,16 @@ class Block(nn.Module):
         head_dim: Dimension of each attention head
         mlp_ratio: Ratio of MLP hidden dimension to transformer dimension
         use_bias: Whether to include bias in the QKV, attention output projection and MLP layers
+        residual_scaling: Residual scaling strategy. One of:
+            'none'        — standard x = x + F(x), no scaling (baseline)
+            'fixed_alpha' — x = x + α·F(x) with fixed α = 1/√N (passed via residual_alpha)
+            'depth_scaled'— same formula but α = 1/√l, varies per layer (passed via residual_alpha)
+            'rezero'      — x = x + α·F(x) with α a learnable Parameter initialized to 0
+        residual_alpha: Precomputed scalar for 'fixed_alpha' and 'depth_scaled'. Ignored for
+            'none' (always 1.0) and 'rezero' (uses nn.Parameter instead).
     """
-    def __init__(self, dim: int, head_dim: int = 64, mlp_ratio: float = 4., use_bias: bool = False):
+    def __init__(self, dim: int, head_dim: int = 64, mlp_ratio: float = 4., use_bias: bool = False,
+                 residual_scaling: str = 'none', residual_alpha: float = 1.0):
         super().__init__()
         self.norm1 = LayerNorm(dim, bias=use_bias)
         self.attn = Attention(dim, head_dim=head_dim, qkv_bias=use_bias, proj_bias=use_bias)
@@ -208,17 +217,21 @@ class Block(nn.Module):
         mlp_hidden_dim = int(dim * mlp_ratio)
         self.mlp = Mlp(dim, mlp_hidden_dim, bias=use_bias)
 
+        if residual_scaling == 'rezero':
+            # One learnable scalar per sub-layer, initialized to 0.
+            # At step 0 the block is a pure skip connection; α grows during training.
+            self.alpha_attn = nn.Parameter(torch.zeros(1))
+            self.alpha_mlp = nn.Parameter(torch.zeros(1))
+        else:
+            # Fixed scalar: 1.0 for 'none', precomputed value for 'fixed_alpha'/'depth_scaled'
+            self.alpha_attn = residual_alpha
+            self.alpha_mlp = residual_alpha
+
     def forward(self, x: torch.Tensor, mask: Optional[torch.Tensor] = None) -> torch.Tensor:
-        
-        # Self-attention pass
-        x_attn = self.attn(self.norm1(x), mask=mask)
-        x = x + x_attn
-
-        # MLP pass
-        x_mlp = self.mlp(self.norm2(x))
-        x = x + x_mlp
-
+        x = x + self.alpha_attn * self.attn(self.norm1(x), mask=mask)
+        x = x + self.alpha_mlp * self.mlp(self.norm2(x))
         return x
+
 
 class DecoderBlock(nn.Module):
     """
@@ -230,8 +243,12 @@ class DecoderBlock(nn.Module):
         head_dim: Dimension of each attention head
         mlp_ratio: Ratio of MLP hidden dimension to transformer dimension
         use_bias: Whether to include bias in the QKV, attention output projection and MLP layers
+        residual_scaling: Same options as Block ('none', 'fixed_alpha', 'depth_scaled', 'rezero').
+            Applied to all three sub-layers (self-attn, cross-attn, MLP).
+        residual_alpha: Precomputed alpha for fixed/depth strategies.
     """
-    def __init__(self, dim: int, head_dim: int = 64, mlp_ratio: float = 4., use_bias: bool = False):
+    def __init__(self, dim: int, head_dim: int = 64, mlp_ratio: float = 4., use_bias: bool = False,
+                 residual_scaling: str = 'none', residual_alpha: float = 1.0):
         super().__init__()
         self.norm1 = LayerNorm(dim, bias=use_bias)
         self.query_norm = LayerNorm(dim, bias=use_bias)
@@ -244,6 +261,15 @@ class DecoderBlock(nn.Module):
         mlp_hidden_dim = int(dim * mlp_ratio)
         self.mlp = Mlp(dim, mlp_hidden_dim, bias=use_bias)
 
+        if residual_scaling == 'rezero':
+            self.alpha_sa = nn.Parameter(torch.zeros(1))
+            self.alpha_xa = nn.Parameter(torch.zeros(1))
+            self.alpha_mlp = nn.Parameter(torch.zeros(1))
+        else:
+            self.alpha_sa = residual_alpha
+            self.alpha_xa = residual_alpha
+            self.alpha_mlp = residual_alpha
+
     def forward(self, 
             x: torch.Tensor, 
             context: torch.Tensor, 
@@ -251,21 +277,9 @@ class DecoderBlock(nn.Module):
             xa_mask: Optional[torch.Tensor] = None, # Cross-attention mask
         ) -> torch.Tensor:
 
-        # Self-attention, then cross-attention, then MLP
-        # Make sure to apply the self-attention mask (sa_mask) to the self-attention layer,
-        # and the cross-attention mask (xa_mask) to the cross-attention layer.
-        # Don't forget to add the residual connections after each layer, and
-        # to apply the normalizations on the inputs of each layer.
-        
-        # Self-attention pass
-        x = x + self.self_attn(self.norm1(x), mask=sa_mask)
-
-        # Cross-attention pass
-        x = x + self.cross_attn(self.query_norm(x), self.context_norm(context), mask=xa_mask)
-
-        # MLP pass
-        x = x + self.mlp(self.norm2(x))
-
+        x = x + self.alpha_sa * self.self_attn(self.norm1(x), mask=sa_mask)
+        x = x + self.alpha_xa * self.cross_attn(self.query_norm(x), self.context_norm(context), mask=xa_mask)
+        x = x + self.alpha_mlp * self.mlp(self.norm2(x))
         return x
 
 
@@ -279,6 +293,11 @@ class TransformerTrunk(nn.Module):
         head_dim: Dimension of each attention head
         mlp_ratio: Ratio of MLP hidden dimension to transformer dimension
         use_bias: Whether to include bias in the QKV, attention output projection and MLP layers
+        residual_scaling: Residual scaling strategy for all blocks.
+            'none'         — baseline, no scaling (default)
+            'fixed_alpha'  — α = 1/√depth, same for all layers
+            'depth_scaled' — α = 1/√(layer_index+1), decreases with depth
+            'rezero'       — learnable α per block, initialized to 0
     """
     def __init__(
         self,
@@ -287,13 +306,21 @@ class TransformerTrunk(nn.Module):
             head_dim: int = 64,
             mlp_ratio: float = 4.0,
             use_bias: bool = False,
+            residual_scaling: str = 'none',
         ):
         super().__init__()
 
-        # Create a list of transformer blocks and wrap inside nn.ModuleList
+        def _alpha(layer_idx: int) -> float:
+            if residual_scaling == 'fixed_alpha':
+                return 1.0 / math.sqrt(depth)
+            elif residual_scaling == 'depth_scaled':
+                return 1.0 / math.sqrt(layer_idx + 1)
+            return 1.0  # 'none' and 'rezero' (rezero ignores this value)
+
         self.blocks = nn.ModuleList([
-            Block(dim=dim, head_dim=head_dim, mlp_ratio=mlp_ratio, use_bias=use_bias) 
-            for _ in range(depth)
+            Block(dim=dim, head_dim=head_dim, mlp_ratio=mlp_ratio, use_bias=use_bias,
+                  residual_scaling=residual_scaling, residual_alpha=_alpha(i))
+            for i in range(depth)
         ])
     
     def forward(self, x: torch.Tensor, mask: Optional[torch.Tensor] = None) -> torch.Tensor:
@@ -314,6 +341,7 @@ class TransformerDecoderTrunk(nn.Module):
         head_dim: Dimension of each attention head
         mlp_ratio: Ratio of MLP hidden dimension to transformer dimension
         use_bias: Whether to include bias in the QKV, attention output projection and MLP layers
+        residual_scaling: Same options as TransformerTrunk.
     """
     def __init__(
         self,
@@ -322,13 +350,22 @@ class TransformerDecoderTrunk(nn.Module):
             head_dim: int = 64,
             mlp_ratio: float = 4.0,
             use_bias: bool = False,
+            residual_scaling: str = 'none',
         ):
         super().__init__()
 
+        def _alpha(layer_idx: int) -> float:
+            if residual_scaling == 'fixed_alpha':
+                return 1.0 / math.sqrt(depth)
+            elif residual_scaling == 'depth_scaled':
+                return 1.0 / math.sqrt(layer_idx + 1)
+            return 1.0
+
         # Create a list of transformer decoder blocks and wrap inside nn.ModuleList
         self.blocks = nn.ModuleList([
-            DecoderBlock(dim=dim, head_dim=head_dim, mlp_ratio=mlp_ratio, use_bias=use_bias)
-            for _ in range(depth)
+            DecoderBlock(dim=dim, head_dim=head_dim, mlp_ratio=mlp_ratio, use_bias=use_bias,
+                         residual_scaling=residual_scaling, residual_alpha=_alpha(i))
+            for i in range(depth)
         ])
     
     def forward(
