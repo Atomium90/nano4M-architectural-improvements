@@ -31,21 +31,29 @@ shift   # remaining args are forwarded to eval_checkpoint.py
 CHECKPOINT="outputs/${EXP_NAME}/checkpoint-final.safetensors"
 CONFIG_DIR="cfgs/nano4M/variants"
 
-_try_configs=(
-    "${CONFIG_DIR}/${EXP_NAME}.yaml"
-    "cfgs/nano4M/${EXP_NAME}.yaml"
-)
-BASE="${EXP_NAME%_v*}"
-if [[ "${BASE}" != "${EXP_NAME}" ]]; then
-    _try_configs+=(
-        "${CONFIG_DIR}/${BASE}.yaml"
-        "cfgs/nano4M/${BASE}.yaml"
-    )
+# Special case: baseline experiments always use the multiclevr config
+if [[ "${EXP_NAME}" == baseline* ]]; then
+    CONFIG="cfgs/nano4M/multiclevr_d6-6w512.yaml"
 fi
-CONFIG=""
-for _c in "${_try_configs[@]}"; do
-    if [[ -f "${_c}" ]]; then CONFIG="${_c}"; break; fi
-done
+
+if [[ -z "${CONFIG:-}" ]]; then
+    _try_configs=(
+        "${CONFIG_DIR}/${EXP_NAME}.yaml"
+        "cfgs/nano4M/${EXP_NAME}.yaml"
+    )
+    BASE="${EXP_NAME%_v*}"
+    if [[ "${BASE}" != "${EXP_NAME}" ]]; then
+        _try_configs+=(
+            "${CONFIG_DIR}/${BASE}.yaml"
+            "cfgs/nano4M/${BASE}.yaml"
+        )
+    fi
+    CONFIG=""
+    for _c in "${_try_configs[@]}"; do
+        if [[ -f "${_c}" ]]; then CONFIG="${_c}"; break; fi
+    done
+fi
+
 if [[ -z "${CONFIG}" ]]; then
     echo "Error: could not find a config for '${EXP_NAME}'."
     for _c in "${_try_configs[@]}"; do echo "  Tried: ${_c}"; done
