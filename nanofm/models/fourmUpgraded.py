@@ -87,6 +87,7 @@ class FourMUpgraded(nn.Module):
         padding_idx: int = -100,
         init_std: float = 0.02,
         per_modality_loss_avg: bool = True,
+        pos_encoding: str = "none", # | "rope" | "alibi"
         **kwargs,
     ):
         super().__init__()
@@ -107,6 +108,7 @@ class FourMUpgraded(nn.Module):
         self.num_modalities = len(modalities)
         self.padding_idx = padding_idx
         self.per_modality_loss_avg = per_modality_loss_avg
+        self.pos_encoding = pos_encoding
 
         # Initialize encoder token embedding
         self.enc_tok_emb = nn.Embedding(self.vocab_size, dim)
@@ -121,11 +123,11 @@ class FourMUpgraded(nn.Module):
                 
         # Initialize Transformer encoder and decoder trunks
         self.encoder = TransformerTrunk(
-            dim=dim, depth=enc_depth, head_dim=head_dim, mlp_ratio=mlp_ratio, use_bias=use_bias
+            dim=dim, depth=enc_depth, head_dim=head_dim, mlp_ratio=mlp_ratio, use_bias=use_bias, pos_encoding=pos_encoding
         ) 
         
         self.decoder = TransformerDecoderTrunk(
-            dim=dim, depth=dec_depth, head_dim=head_dim, mlp_ratio=mlp_ratio, use_bias=use_bias
+            dim=dim, depth=dec_depth, head_dim=head_dim, mlp_ratio=mlp_ratio, use_bias=use_bias, pos_encoding=pos_encoding,
         ) 
 
         # Initialize encoder -> decoder context projection
@@ -209,17 +211,34 @@ class FourMUpgraded(nn.Module):
 
         # Get the positional embeddings for the input positions `enc_input_positions` and add them to the input tokens. Shape: [B, N, D]
         # Sum the positional embeddings to the token embeddings.
+        # Special cases for alibi and rope
         enc_posembs = self.pos_emb[enc_input_positions]
-        x = x + enc_posembs
+
+        # =========================
+        # POSITION ENCODING SWITCH
+        # =========================
+        if self.pos_encoding == "none":
+            x = x + enc_posembs
+
+        elif self.pos_encoding == "rope":
+            # nothing here (handled inside attention)
+            pass
+
+        elif self.pos_encoding == "alibi":
+            # nothing here (bias in attention)
+            pass
+
+        else:
+            raise ValueError(f"Unknown pos_encoding: {self.pos_encoding}")
 
         # Construct (B, N, N) attention mask for padding. True = used, False = masked out.
         enc_pad_attn_mask = repeat(enc_pad_mask, 'b n -> b m n', m=N) if enc_pad_mask is not None else None
 
         # Forward pass through the Transformer encoder. Shape [B, N, D]
         # Hint: Don't forget to pass the encoder attention mask `enc_pad_attn_mask`.
-        x = self.encoder(x, mask=enc_pad_attn_mask)
+        x = self.encoder(x, mask=enc_pad_attn_mask, positions=enc_input_positions)
 
-        # TODO: Pass to the encoder output normalization layer
+        # Pass to the encoder output normalization layer
         x = self.enc_norm(x)
 
         return x, enc_posembs
@@ -259,7 +278,23 @@ class FourMUpgraded(nn.Module):
 
         # Get the positional embeddings for the target positions `dec_input_positions` and add them to the tokens. Shape: [B, M, D]
         # Sum the positional embeddings to the token embeddings.
-        x = x + self.pos_emb[dec_input_positions]
+        #Special cases for rope and alibi
+        dec_posembs = self.pos_emb[dec_input_positions]
+
+        # =========================
+        # POSITION ENCODING SWITCH
+        # =========================
+        if self.pos_encoding == "none":
+            x = x + dec_posembs
+
+        elif self.pos_encoding == "rope":
+            pass
+
+        elif self.pos_encoding == "alibi":
+            pass
+
+        else:
+            raise ValueError(f"Unknown pos_encoding: {self.pos_encoding}")
 
         # Construct attention masks for padding. True = used, False = masked out.
         # [B, M, M] self-attention mask and [B, M, N] cross-attention mask
@@ -270,11 +305,13 @@ class FourMUpgraded(nn.Module):
         context = self.dec_context_proj(enc_context)
 
         # Add the encoder positional embeddings `enc_posembs`. Shape: [B, N, D]
-        context = context + enc_posembs
+        # Only if "none"
+        if self.pos_encoding == "none":
+            context = context + enc_posembs
 
         # Pass through the Transformer decoder. Shape [B, M, D]
         # Hint: Don't forget to pass the decoder self-attention mask `dec_pad_sa_mask` and the cross-attention mask `dec_pad_xa_mask`.
-        x = self.decoder(x, context, sa_mask=dec_pad_sa_mask, xa_mask=dec_pad_xa_mask)
+        x = self.decoder(x, context, sa_mask=dec_pad_sa_mask, xa_mask=dec_pad_xa_mask, positions=dec_input_positions)
 
         # Pass to the decoder output normalization layer
         x = self.dec_norm(x)
