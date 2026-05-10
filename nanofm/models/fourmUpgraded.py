@@ -87,6 +87,7 @@ class FourMUpgraded(nn.Module):
         padding_idx: int = -100,
         init_std: float = 0.02,
         per_modality_loss_avg: bool = True,
+        residual_scaling: str = 'none',  # 'none' | 'fixed_alpha' | 'depth_scaled' | 'rezero'
         init_strategy: str = 'normal',  # 'normal' | 'he' | 'xavier' | 'deepnorm'
         **kwargs,
     ):
@@ -122,11 +123,13 @@ class FourMUpgraded(nn.Module):
 
         # Initialize Transformer encoder and decoder trunks
         self.encoder = TransformerTrunk(
-            dim=dim, depth=enc_depth, head_dim=head_dim, mlp_ratio=mlp_ratio, use_bias=use_bias
+            dim=dim, depth=enc_depth, head_dim=head_dim, mlp_ratio=mlp_ratio, use_bias=use_bias,
+            residual_scaling=residual_scaling,
         )
-
+        
         self.decoder = TransformerDecoderTrunk(
-            dim=dim, depth=dec_depth, head_dim=head_dim, mlp_ratio=mlp_ratio, use_bias=use_bias
+            dim=dim, depth=dec_depth, head_dim=head_dim, mlp_ratio=mlp_ratio, use_bias=use_bias,
+            residual_scaling=residual_scaling,
         )
 
         # Initialize encoder -> decoder context projection
