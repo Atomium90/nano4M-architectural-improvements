@@ -341,7 +341,7 @@ class TransformerTrunk(nn.Module):
             head_dim: int = 64,
             mlp_ratio: float = 4.0,
             use_bias: bool = False,
-            use_swiglu: bool = False
+            use_swiglu: bool = False,
             residual_scaling: str = 'none',
         ):
         super().__init__()
@@ -386,7 +386,7 @@ class TransformerDecoderTrunk(nn.Module):
             head_dim: int = 64,
             mlp_ratio: float = 4.0,
             use_bias: bool = False,
-            use_swiglu: bool = False
+            use_swiglu: bool = False,
             residual_scaling: str = 'none',
         ):
         super().__init__()

@@ -225,15 +225,20 @@ class FourMUpgraded(nn.Module):
 
         Targets:
           - attn_out_proj in every self-attention and cross-attention block
-          - l2 in every baseline Mlp block (the second / output linear)
+          - l2 in baseline Mlp (output linear)
+          - out_proj in SwiGLU (output linear) — different attribute name, same role
         """
         for module in self.modules():
             if hasattr(module, 'attn_out_proj') and isinstance(module.attn_out_proj, nn.Linear):
                 with torch.no_grad():
                     module.attn_out_proj.weight.mul_(beta)
+            # Mlp uses self.l2, SwiGLU uses self.out_proj — handle both
             if hasattr(module, 'l2') and isinstance(module.l2, nn.Linear):
                 with torch.no_grad():
                     module.l2.weight.mul_(beta)
+            if hasattr(module, 'out_proj') and isinstance(module.out_proj, nn.Linear):
+                with torch.no_grad():
+                    module.out_proj.weight.mul_(beta)
 
     def get_num_params(self, non_embedding=True) -> int:
         """
