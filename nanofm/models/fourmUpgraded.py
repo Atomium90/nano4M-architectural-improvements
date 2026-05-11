@@ -87,9 +87,13 @@ class FourMUpgraded(nn.Module):
         padding_idx: int = -100,
         init_std: float = 0.02,
         per_modality_loss_avg: bool = True,
+<<<<<<< feat/rope_alibi_experiment
+        pos_encoding: str = "none",  # "none" | "rope" | "alibi"
+=======
         use_swiglu: bool = False,
         residual_scaling: str = 'none',  # 'none' | 'fixed_alpha' | 'depth_scaled' | 'rezero'
         init_strategy: str = 'normal',  # 'normal' | 'he' | 'xavier' | 'deepnorm'
+>>>>>>> feat/combined_experiments
         **kwargs,
     ):
         super().__init__()
@@ -110,6 +114,7 @@ class FourMUpgraded(nn.Module):
         self.num_modalities = len(modalities)
         self.padding_idx = padding_idx
         self.per_modality_loss_avg = per_modality_loss_avg
+        self.pos_encoding = pos_encoding
 
         # Initialize encoder token embedding
         self.enc_tok_emb = nn.Embedding(self.vocab_size, dim)
@@ -124,6 +129,14 @@ class FourMUpgraded(nn.Module):
 
         # Initialize Transformer encoder and decoder trunks
         self.encoder = TransformerTrunk(
+<<<<<<< feat/rope_alibi_experiment
+            dim=dim, depth=enc_depth, head_dim=head_dim, mlp_ratio=mlp_ratio, use_bias=use_bias, pos_encoding=pos_encoding
+        ) 
+        
+        self.decoder = TransformerDecoderTrunk(
+            dim=dim, depth=dec_depth, head_dim=head_dim, mlp_ratio=mlp_ratio, use_bias=use_bias, pos_encoding=pos_encoding,
+        ) 
+=======
             dim=dim, depth=enc_depth, head_dim=head_dim, mlp_ratio=mlp_ratio, use_bias=use_bias,
             use_swiglu=use_swiglu, residual_scaling=residual_scaling,
         )
@@ -132,6 +145,7 @@ class FourMUpgraded(nn.Module):
             dim=dim, depth=dec_depth, head_dim=head_dim, mlp_ratio=mlp_ratio, use_bias=use_bias,
             use_swiglu=use_swiglu, residual_scaling=residual_scaling,
         )
+>>>>>>> feat/combined_experiments
 
         # Initialize encoder -> decoder context projection
         self.dec_context_proj = nn.Linear(dim, dim, bias=use_bias)
@@ -291,14 +305,23 @@ class FourMUpgraded(nn.Module):
         # Get the positional embeddings for the input positions `enc_input_positions` and add them to the input tokens. Shape: [B, N, D]
         # Sum the positional embeddings to the token embeddings.
         enc_posembs = self.pos_emb[enc_input_positions]
+
+        # -- Positional encoding strategy ----------------------------------
+        # "none"  : sinusoidal added to x — the only position signal.
+        # "rope"  : sinusoidal still added so that encoder hidden states carry
+        #           explicit position info for the cross-attention later.
+        #           RoPE additionally encodes relative position in self-attn Q/K.
+        # "alibi" : same reasoning — sinusoidal for absolute position in hidden
+        #           states; ALiBi adds a distance-based bias in self-attn scores.
+        # In all cases we add enc_posembs. No conflict: sinusoidal lives in the
+        # residual stream; RoPE/ALiBi act on attention logits only.
         x = x + enc_posembs
 
         # Construct (B, N, N) attention mask for padding. True = used, False = masked out.
         enc_pad_attn_mask = repeat(enc_pad_mask, 'b n -> b m n', m=N) if enc_pad_mask is not None else None
 
-        # Forward pass through the Transformer encoder. Shape [B, N, D]
-        # Hint: Don't forget to pass the encoder attention mask `enc_pad_attn_mask`.
-        x = self.encoder(x, mask=enc_pad_attn_mask)
+        # Pass positions so RoPE/ALiBi can compute rotations/biases inside each block
+        x = self.encoder(x, mask=enc_pad_attn_mask, positions=enc_input_positions)
 
         # Pass to the encoder output normalization layer
         x = self.enc_norm(x)
@@ -340,7 +363,13 @@ class FourMUpgraded(nn.Module):
 
         # Get the positional embeddings for the target positions `dec_input_positions` and add them to the tokens. Shape: [B, M, D]
         # Sum the positional embeddings to the token embeddings.
-        x = x + self.pos_emb[dec_input_positions]
+        dec_posembs = self.pos_emb[dec_input_positions]
+
+        # -- Positional encoding strategy ----------------------------------
+        # Same reasoning as forward_encoder: always add sinusoidal so the
+        # decoder queries carry absolute position info for cross-attention.
+        # RoPE/ALiBi still act inside the decoder self-attention via `positions`.
+        x = x + dec_posembs
 
         # Construct attention masks for padding. True = used, False = masked out.
         # [B, M, M] self-attention mask and [B, M, N] cross-attention mask
@@ -350,12 +379,14 @@ class FourMUpgraded(nn.Module):
         # Project context `enc_context` to the decoder dimension using `dec_context_proj`. Shape: [B, N, D]
         context = self.dec_context_proj(enc_context)
 
-        # Add the encoder positional embeddings `enc_posembs`. Shape: [B, N, D]
+        # Always add encoder positional embeddings to the context.
+        # The cross-attention (which never uses RoPE/ALiBi) needs explicit
+        # position info on the key/value side to align encoder and decoder tokens.
         context = context + enc_posembs
 
         # Pass through the Transformer decoder. Shape [B, M, D]
         # Hint: Don't forget to pass the decoder self-attention mask `dec_pad_sa_mask` and the cross-attention mask `dec_pad_xa_mask`.
-        x = self.decoder(x, context, sa_mask=dec_pad_sa_mask, xa_mask=dec_pad_xa_mask)
+        x = self.decoder(x, context, sa_mask=dec_pad_sa_mask, xa_mask=dec_pad_xa_mask, positions=dec_input_positions)
 
         # Pass to the decoder output normalization layer
         x = self.dec_norm(x)
