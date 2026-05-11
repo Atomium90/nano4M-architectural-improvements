@@ -87,13 +87,10 @@ class FourMUpgraded(nn.Module):
         padding_idx: int = -100,
         init_std: float = 0.02,
         per_modality_loss_avg: bool = True,
-<<<<<<< feat/rope_alibi_experiment
         pos_encoding: str = "none",  # "none" | "rope" | "alibi"
-=======
         use_swiglu: bool = False,
         residual_scaling: str = 'none',  # 'none' | 'fixed_alpha' | 'depth_scaled' | 'rezero'
         init_strategy: str = 'normal',  # 'normal' | 'he' | 'xavier' | 'deepnorm'
->>>>>>> feat/combined_experiments
         **kwargs,
     ):
         super().__init__()
@@ -129,23 +126,14 @@ class FourMUpgraded(nn.Module):
 
         # Initialize Transformer encoder and decoder trunks
         self.encoder = TransformerTrunk(
-<<<<<<< feat/rope_alibi_experiment
-            dim=dim, depth=enc_depth, head_dim=head_dim, mlp_ratio=mlp_ratio, use_bias=use_bias, pos_encoding=pos_encoding
-        ) 
+            dim=dim, depth=enc_depth, head_dim=head_dim, mlp_ratio=mlp_ratio, use_bias=use_bias, pos_encoding=pos_encoding,
+            use_swiglu=use_swiglu, residual_scaling=residual_scaling,
+        )
         
         self.decoder = TransformerDecoderTrunk(
             dim=dim, depth=dec_depth, head_dim=head_dim, mlp_ratio=mlp_ratio, use_bias=use_bias, pos_encoding=pos_encoding,
-        ) 
-=======
-            dim=dim, depth=enc_depth, head_dim=head_dim, mlp_ratio=mlp_ratio, use_bias=use_bias,
             use_swiglu=use_swiglu, residual_scaling=residual_scaling,
         )
-        
-        self.decoder = TransformerDecoderTrunk(
-            dim=dim, depth=dec_depth, head_dim=head_dim, mlp_ratio=mlp_ratio, use_bias=use_bias,
-            use_swiglu=use_swiglu, residual_scaling=residual_scaling,
-        )
->>>>>>> feat/combined_experiments
 
         # Initialize encoder -> decoder context projection
         self.dec_context_proj = nn.Linear(dim, dim, bias=use_bias)

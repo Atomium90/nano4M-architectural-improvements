@@ -362,12 +362,8 @@ class Block(nn.Module):
         residual_alpha: Precomputed scalar for 'fixed_alpha' and 'depth_scaled'. Ignored for
             'none' (always 1.0) and 'rezero' (uses nn.Parameter instead).
     """
-<<<<<<< feat/rope_alibi_experiment
-    def __init__(self, dim: int, head_dim: int = 64, mlp_ratio: float = 4., use_bias: bool = False, pos_encoding: str = "none",):
-=======
-    def __init__(self, dim: int, head_dim: int = 64, mlp_ratio: float = 4., use_bias: bool = False,
+    def __init__(self, dim: int, head_dim: int = 64, mlp_ratio: float = 4., use_bias: bool = False, pos_encoding: str = "none",
                  use_swiglu: bool = False, residual_scaling: str = 'none', residual_alpha: float = 1.0):
->>>>>>> feat/combined_experiments
         super().__init__()
         self.norm1 = LayerNorm(dim, bias=use_bias)
         self.attn = Attention(dim, head_dim=head_dim, qkv_bias=use_bias, proj_bias=use_bias, pos_encoding=pos_encoding)
@@ -386,22 +382,12 @@ class Block(nn.Module):
             self.alpha_attn = residual_alpha
             self.alpha_mlp = residual_alpha
 
-<<<<<<< feat/rope_alibi_experiment
     def forward(self, x: torch.Tensor, mask: Optional[torch.Tensor] = None, positions: Optional[torch.Tensor] = None) -> torch.Tensor:
-        
         # Self-attention pass
-        x_attn = self.attn(self.norm1(x), mask=mask, positions=positions)
-        x = x + x_attn
+        x = x + self.alpha_attn * self.attn(self.norm1(x), mask=mask, positions=positions)
 
         # MLP pass
-        x_mlp = self.mlp(self.norm2(x))
-        x = x + x_mlp
-
-=======
-    def forward(self, x: torch.Tensor, mask: Optional[torch.Tensor] = None) -> torch.Tensor:
-        x = x + self.alpha_attn * self.attn(self.norm1(x), mask=mask)
         x = x + self.alpha_mlp * self.mlp(self.norm2(x))
->>>>>>> feat/combined_experiments
         return x
 
 
@@ -419,12 +405,8 @@ class DecoderBlock(nn.Module):
             Applied to all three sub-layers (self-attn, cross-attn, MLP).
         residual_alpha: Precomputed alpha for fixed/depth strategies.
     """
-<<<<<<< feat/rope_alibi_experiment
-    def __init__(self, dim: int, head_dim: int = 64, mlp_ratio: float = 4., use_bias: bool = False, pos_encoding= "none",):
-=======
-    def __init__(self, dim: int, head_dim: int = 64, mlp_ratio: float = 4., use_bias: bool = False,
+    def __init__(self, dim: int, head_dim: int = 64, mlp_ratio: float = 4., use_bias: bool = False, pos_encoding= "none",
                  use_swiglu: bool = False, residual_scaling: str = 'none', residual_alpha: float = 1.0):
->>>>>>> feat/combined_experiments
         super().__init__()
         self.norm1 = LayerNorm(dim, bias=use_bias)
         self.query_norm = LayerNorm(dim, bias=use_bias)
@@ -454,28 +436,14 @@ class DecoderBlock(nn.Module):
             xa_mask: Optional[torch.Tensor] = None, # Cross-attention mask
             positions: Optional[torch.Tensor] = None,
         ) -> torch.Tensor:
-
-<<<<<<< feat/rope_alibi_experiment
-        # Self-attention, then cross-attention, then MLP
-        # Make sure to apply the self-attention mask (sa_mask) to the self-attention layer,
-        # and the cross-attention mask (xa_mask) to the cross-attention layer.
-        # Don't forget to add the residual connections after each layer, and
-        # to apply the normalizations on the inputs of each layer.
-        
         # Self-attention pass
-        x = x + self.self_attn(self.norm1(x), mask=sa_mask, positions=positions)
+        x = x + self.alpha_sa * self.self_attn(self.norm1(x), mask=sa_mask, positions=positions)
 
         # Cross-attention pass
-        x = x + self.cross_attn(self.query_norm(x), self.context_norm(context), mask=xa_mask)
+        x = x + self.alpha_xa * self.cross_attn(self.query_norm(x), self.context_norm(context), mask=xa_mask)
 
         # MLP pass
-        x = x + self.mlp(self.norm2(x))
-
-=======
-        x = x + self.alpha_sa * self.self_attn(self.norm1(x), mask=sa_mask)
-        x = x + self.alpha_xa * self.cross_attn(self.query_norm(x), self.context_norm(context), mask=xa_mask)
         x = x + self.alpha_mlp * self.mlp(self.norm2(x))
->>>>>>> feat/combined_experiments
         return x
 
 
@@ -502,12 +470,9 @@ class TransformerTrunk(nn.Module):
             head_dim: int = 64,
             mlp_ratio: float = 4.0,
             use_bias: bool = False,
-<<<<<<< feat/rope_alibi_experiment
             pos_encoding: str = "none",
-=======
             use_swiglu: bool = False,
             residual_scaling: str = 'none',
->>>>>>> feat/combined_experiments
         ):
         super().__init__()
 
@@ -519,14 +484,9 @@ class TransformerTrunk(nn.Module):
             return 1.0  # 'none' and 'rezero' (rezero ignores this value)
 
         self.blocks = nn.ModuleList([
-<<<<<<< feat/rope_alibi_experiment
-            Block(dim=dim, head_dim=head_dim, mlp_ratio=mlp_ratio, use_bias=use_bias, pos_encoding=pos_encoding) 
-            for _ in range(depth)
-=======
-            Block(dim=dim, head_dim=head_dim, mlp_ratio=mlp_ratio, use_bias=use_bias,
+            Block(dim=dim, head_dim=head_dim, mlp_ratio=mlp_ratio, use_bias=use_bias, pos_encoding=pos_encoding,
                   use_swiglu=use_swiglu, residual_scaling=residual_scaling, residual_alpha=_alpha(i))
             for i in range(depth)
->>>>>>> feat/combined_experiments
         ])
     
     def forward(self, x: torch.Tensor, mask: Optional[torch.Tensor] = None, positions: Optional[torch.Tensor] = None) -> torch.Tensor:
@@ -556,12 +516,9 @@ class TransformerDecoderTrunk(nn.Module):
             head_dim: int = 64,
             mlp_ratio: float = 4.0,
             use_bias: bool = False,
-<<<<<<< feat/rope_alibi_experiment
             pos_encoding: str = "none",
-=======
             use_swiglu: bool = False,
             residual_scaling: str = 'none',
->>>>>>> feat/combined_experiments
         ):
         super().__init__()
 
@@ -574,14 +531,9 @@ class TransformerDecoderTrunk(nn.Module):
 
         # Create a list of transformer decoder blocks and wrap inside nn.ModuleList
         self.blocks = nn.ModuleList([
-<<<<<<< feat/rope_alibi_experiment
-            DecoderBlock(dim=dim, head_dim=head_dim, mlp_ratio=mlp_ratio, use_bias=use_bias, pos_encoding=pos_encoding)
-            for _ in range(depth)
-=======
-            DecoderBlock(dim=dim, head_dim=head_dim, mlp_ratio=mlp_ratio, use_bias=use_bias,
+            DecoderBlock(dim=dim, head_dim=head_dim, mlp_ratio=mlp_ratio, use_bias=use_bias, pos_encoding=pos_encoding,
                          use_swiglu=use_swiglu, residual_scaling=residual_scaling, residual_alpha=_alpha(i))
             for i in range(depth)
->>>>>>> feat/combined_experiments
         ])
     
     def forward(
