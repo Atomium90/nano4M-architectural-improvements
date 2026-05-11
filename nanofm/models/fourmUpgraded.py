@@ -87,7 +87,7 @@ class FourMUpgraded(nn.Module):
         padding_idx: int = -100,
         init_std: float = 0.02,
         per_modality_loss_avg: bool = True,
-        pos_encoding: str = "none", # | "rope" | "alibi"
+        pos_encoding: str = "none",  # "none" | "rope" | "alibi"
         **kwargs,
     ):
         super().__init__()
@@ -211,31 +211,23 @@ class FourMUpgraded(nn.Module):
 
         # Get the positional embeddings for the input positions `enc_input_positions` and add them to the input tokens. Shape: [B, N, D]
         # Sum the positional embeddings to the token embeddings.
-        # Special cases for alibi and rope
         enc_posembs = self.pos_emb[enc_input_positions]
 
-        # =========================
-        # POSITION ENCODING SWITCH
-        # =========================
-        if self.pos_encoding == "none":
-            x = x + enc_posembs
-
-        elif self.pos_encoding == "rope":
-            # nothing here (handled inside attention)
-            pass
-
-        elif self.pos_encoding == "alibi":
-            # nothing here (bias in attention)
-            pass
-
-        else:
-            raise ValueError(f"Unknown pos_encoding: {self.pos_encoding}")
+        # -- Positional encoding strategy ----------------------------------
+        # "none"  : sinusoidal added to x — the only position signal.
+        # "rope"  : sinusoidal still added so that encoder hidden states carry
+        #           explicit position info for the cross-attention later.
+        #           RoPE additionally encodes relative position in self-attn Q/K.
+        # "alibi" : same reasoning — sinusoidal for absolute position in hidden
+        #           states; ALiBi adds a distance-based bias in self-attn scores.
+        # In all cases we add enc_posembs. No conflict: sinusoidal lives in the
+        # residual stream; RoPE/ALiBi act on attention logits only.
+        x = x + enc_posembs
 
         # Construct (B, N, N) attention mask for padding. True = used, False = masked out.
         enc_pad_attn_mask = repeat(enc_pad_mask, 'b n -> b m n', m=N) if enc_pad_mask is not None else None
 
-        # Forward pass through the Transformer encoder. Shape [B, N, D]
-        # Hint: Don't forget to pass the encoder attention mask `enc_pad_attn_mask`.
+        # Pass positions so RoPE/ALiBi can compute rotations/biases inside each block
         x = self.encoder(x, mask=enc_pad_attn_mask, positions=enc_input_positions)
 
         # Pass to the encoder output normalization layer
@@ -278,23 +270,13 @@ class FourMUpgraded(nn.Module):
 
         # Get the positional embeddings for the target positions `dec_input_positions` and add them to the tokens. Shape: [B, M, D]
         # Sum the positional embeddings to the token embeddings.
-        #Special cases for rope and alibi
         dec_posembs = self.pos_emb[dec_input_positions]
 
-        # =========================
-        # POSITION ENCODING SWITCH
-        # =========================
-        if self.pos_encoding == "none":
-            x = x + dec_posembs
-
-        elif self.pos_encoding == "rope":
-            pass
-
-        elif self.pos_encoding == "alibi":
-            pass
-
-        else:
-            raise ValueError(f"Unknown pos_encoding: {self.pos_encoding}")
+        # -- Positional encoding strategy ----------------------------------
+        # Same reasoning as forward_encoder: always add sinusoidal so the
+        # decoder queries carry absolute position info for cross-attention.
+        # RoPE/ALiBi still act inside the decoder self-attention via `positions`.
+        x = x + dec_posembs
 
         # Construct attention masks for padding. True = used, False = masked out.
         # [B, M, M] self-attention mask and [B, M, N] cross-attention mask
@@ -304,10 +286,10 @@ class FourMUpgraded(nn.Module):
         # Project context `enc_context` to the decoder dimension using `dec_context_proj`. Shape: [B, N, D] 
         context = self.dec_context_proj(enc_context)
 
-        # Add the encoder positional embeddings `enc_posembs`. Shape: [B, N, D]
-        # Only if "none"
-        if self.pos_encoding == "none":
-            context = context + enc_posembs
+        # Always add encoder positional embeddings to the context.
+        # The cross-attention (which never uses RoPE/ALiBi) needs explicit
+        # position info on the key/value side to align encoder and decoder tokens.
+        context = context + enc_posembs
 
         # Pass through the Transformer decoder. Shape [B, M, D]
         # Hint: Don't forget to pass the decoder self-attention mask `dec_pad_sa_mask` and the cross-attention mask `dec_pad_xa_mask`.
