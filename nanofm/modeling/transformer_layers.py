@@ -137,6 +137,39 @@ class LayerNorm(nn.Module):
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         return nn.functional.layer_norm(x, self.normalized_shape, self.weight, self.bias, eps=self.eps)
 
+class SwiGLU(nn.Module):
+    """
+        SwiGLU feed-forward layer.
+        
+        Args:
+            in_features: Number of input features.
+            hidden_features: Number of hidden features used inside the gated FFN.
+                Defaults to in_features if not provided.
+            out_features: Number of output features.
+                Defaults to in_features if not provided.
+            bias: Whether to include bias in the linear layers.
+    """
+    def __init__(
+        self,
+        in_features: int,
+        hidden_features: Optional[int] = None,
+        out_features: Optional[int] = None,
+        bias: bool = False,
+    ):
+        super().__init__()
+        out_features = out_features or in_features
+        hidden_features = hidden_features or in_features
+
+        self.gate_proj = nn.Linear(in_features, hidden_features, bias=bias)
+        self.value_proj = nn.Linear(in_features, hidden_features, bias=bias)
+        self.out_proj = nn.Linear(hidden_features, out_features, bias=bias)
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        gate = F.silu(self.gate_proj(x))
+        value = self.value_proj(x)
+        x = gate * value
+        x = self.out_proj(x)
+        return x
 
 class Mlp(nn.Module):
     """
@@ -224,7 +257,7 @@ class Attention(nn.Module):
 
         if mask is not None:
             mask = rearrange(mask, "b n m -> b 1 n m") # Unsqueeze for multi-head attention
-            # Apply the optional attention mask. Wherever the mask is False, replace the attention 
+            # Apply the optional attention mask. Wherever the mask is False, replace the attention
             # matrix value by negative infinity → zero attention weight after softmax.
             attn = attn.masked_fill(~mask, float('-inf'))
 
@@ -294,7 +327,7 @@ class CrossAttention(nn.Module):
 
         if mask is not None:
             mask = rearrange(mask, "b n m -> b 1 n m") # Unsqueeze for multi-head attention
-            # Apply the optional attention mask. Wherever the mask is False, replace the attention 
+            # Apply the optional attention mask. Wherever the mask is False, replace the attention
             # matrix value by negative infinity → zero attention weight after softmax.
             attn = attn.masked_fill(~mask, float('-inf'))
 
@@ -321,15 +354,39 @@ class Block(nn.Module):
         head_dim: Dimension of each attention head
         mlp_ratio: Ratio of MLP hidden dimension to transformer dimension
         use_bias: Whether to include bias in the QKV, attention output projection and MLP layers
+        residual_scaling: Residual scaling strategy. One of:
+            'none'        — standard x = x + F(x), no scaling (baseline)
+            'fixed_alpha' — x = x + α·F(x) with fixed α = 1/√N (passed via residual_alpha)
+            'depth_scaled'— same formula but α = 1/√l, varies per layer (passed via residual_alpha)
+            'rezero'      — x = x + α·F(x) with α a learnable Parameter initialized to 0
+        residual_alpha: Precomputed scalar for 'fixed_alpha' and 'depth_scaled'. Ignored for
+            'none' (always 1.0) and 'rezero' (uses nn.Parameter instead).
     """
+<<<<<<< feat/rope_alibi_experiment
     def __init__(self, dim: int, head_dim: int = 64, mlp_ratio: float = 4., use_bias: bool = False, pos_encoding: str = "none",):
+=======
+    def __init__(self, dim: int, head_dim: int = 64, mlp_ratio: float = 4., use_bias: bool = False,
+                 use_swiglu: bool = False, residual_scaling: str = 'none', residual_alpha: float = 1.0):
+>>>>>>> feat/combined_experiments
         super().__init__()
         self.norm1 = LayerNorm(dim, bias=use_bias)
         self.attn = Attention(dim, head_dim=head_dim, qkv_bias=use_bias, proj_bias=use_bias, pos_encoding=pos_encoding)
         self.norm2 = LayerNorm(dim, bias=use_bias)
         mlp_hidden_dim = int(dim * mlp_ratio)
-        self.mlp = Mlp(dim, mlp_hidden_dim, bias=use_bias)
+        if use_swiglu: self.mlp = SwiGLU(in_features=dim, hidden_features=mlp_hidden_dim, out_features=dim, bias=use_bias)
+        else: self.mlp = Mlp(in_features=dim, hidden_features=mlp_hidden_dim, out_features=dim, bias=use_bias)
 
+        if residual_scaling == 'rezero':
+            # One learnable scalar per sub-layer, initialized to 0.
+            # At step 0 the block is a pure skip connection; α grows during training.
+            self.alpha_attn = nn.Parameter(torch.zeros(1))
+            self.alpha_mlp = nn.Parameter(torch.zeros(1))
+        else:
+            # Fixed scalar: 1.0 for 'none', precomputed value for 'fixed_alpha'/'depth_scaled'
+            self.alpha_attn = residual_alpha
+            self.alpha_mlp = residual_alpha
+
+<<<<<<< feat/rope_alibi_experiment
     def forward(self, x: torch.Tensor, mask: Optional[torch.Tensor] = None, positions: Optional[torch.Tensor] = None) -> torch.Tensor:
         
         # Self-attention pass
@@ -340,7 +397,13 @@ class Block(nn.Module):
         x_mlp = self.mlp(self.norm2(x))
         x = x + x_mlp
 
+=======
+    def forward(self, x: torch.Tensor, mask: Optional[torch.Tensor] = None) -> torch.Tensor:
+        x = x + self.alpha_attn * self.attn(self.norm1(x), mask=mask)
+        x = x + self.alpha_mlp * self.mlp(self.norm2(x))
+>>>>>>> feat/combined_experiments
         return x
+
 
 class DecoderBlock(nn.Module):
     """
@@ -352,8 +415,16 @@ class DecoderBlock(nn.Module):
         head_dim: Dimension of each attention head
         mlp_ratio: Ratio of MLP hidden dimension to transformer dimension
         use_bias: Whether to include bias in the QKV, attention output projection and MLP layers
+        residual_scaling: Same options as Block ('none', 'fixed_alpha', 'depth_scaled', 'rezero').
+            Applied to all three sub-layers (self-attn, cross-attn, MLP).
+        residual_alpha: Precomputed alpha for fixed/depth strategies.
     """
+<<<<<<< feat/rope_alibi_experiment
     def __init__(self, dim: int, head_dim: int = 64, mlp_ratio: float = 4., use_bias: bool = False, pos_encoding= "none",):
+=======
+    def __init__(self, dim: int, head_dim: int = 64, mlp_ratio: float = 4., use_bias: bool = False,
+                 use_swiglu: bool = False, residual_scaling: str = 'none', residual_alpha: float = 1.0):
+>>>>>>> feat/combined_experiments
         super().__init__()
         self.norm1 = LayerNorm(dim, bias=use_bias)
         self.query_norm = LayerNorm(dim, bias=use_bias)
@@ -364,7 +435,17 @@ class DecoderBlock(nn.Module):
         self.cross_attn = CrossAttention(dim, head_dim=head_dim, qkv_bias=use_bias, proj_bias=use_bias, pos_encoding=pos_encoding)
 
         mlp_hidden_dim = int(dim * mlp_ratio)
-        self.mlp = Mlp(dim, mlp_hidden_dim, bias=use_bias)
+        if use_swiglu: self.mlp = SwiGLU( in_features=dim, hidden_features=mlp_hidden_dim, out_features=dim, bias=use_bias)
+        else: self.mlp = Mlp(in_features=dim, hidden_features=mlp_hidden_dim, out_features=dim, bias=use_bias)
+
+        if residual_scaling == 'rezero':
+            self.alpha_sa = nn.Parameter(torch.zeros(1))
+            self.alpha_xa = nn.Parameter(torch.zeros(1))
+            self.alpha_mlp = nn.Parameter(torch.zeros(1))
+        else:
+            self.alpha_sa = residual_alpha
+            self.alpha_xa = residual_alpha
+            self.alpha_mlp = residual_alpha
 
     def forward(self, 
             x: torch.Tensor, 
@@ -374,6 +455,7 @@ class DecoderBlock(nn.Module):
             positions: Optional[torch.Tensor] = None,
         ) -> torch.Tensor:
 
+<<<<<<< feat/rope_alibi_experiment
         # Self-attention, then cross-attention, then MLP
         # Make sure to apply the self-attention mask (sa_mask) to the self-attention layer,
         # and the cross-attention mask (xa_mask) to the cross-attention layer.
@@ -389,6 +471,11 @@ class DecoderBlock(nn.Module):
         # MLP pass
         x = x + self.mlp(self.norm2(x))
 
+=======
+        x = x + self.alpha_sa * self.self_attn(self.norm1(x), mask=sa_mask)
+        x = x + self.alpha_xa * self.cross_attn(self.query_norm(x), self.context_norm(context), mask=xa_mask)
+        x = x + self.alpha_mlp * self.mlp(self.norm2(x))
+>>>>>>> feat/combined_experiments
         return x
 
 
@@ -402,6 +489,11 @@ class TransformerTrunk(nn.Module):
         head_dim: Dimension of each attention head
         mlp_ratio: Ratio of MLP hidden dimension to transformer dimension
         use_bias: Whether to include bias in the QKV, attention output projection and MLP layers
+        residual_scaling: Residual scaling strategy for all blocks.
+            'none'         — baseline, no scaling (default)
+            'fixed_alpha'  — α = 1/√depth, same for all layers
+            'depth_scaled' — α = 1/√(layer_index+1), decreases with depth
+            'rezero'       — learnable α per block, initialized to 0
     """
     def __init__(
         self,
@@ -410,14 +502,31 @@ class TransformerTrunk(nn.Module):
             head_dim: int = 64,
             mlp_ratio: float = 4.0,
             use_bias: bool = False,
+<<<<<<< feat/rope_alibi_experiment
             pos_encoding: str = "none",
+=======
+            use_swiglu: bool = False,
+            residual_scaling: str = 'none',
+>>>>>>> feat/combined_experiments
         ):
         super().__init__()
 
-        # Create a list of transformer blocks and wrap inside nn.ModuleList
+        def _alpha(layer_idx: int) -> float:
+            if residual_scaling == 'fixed_alpha':
+                return 1.0 / math.sqrt(depth)
+            elif residual_scaling == 'depth_scaled':
+                return 1.0 / math.sqrt(layer_idx + 1)
+            return 1.0  # 'none' and 'rezero' (rezero ignores this value)
+
         self.blocks = nn.ModuleList([
+<<<<<<< feat/rope_alibi_experiment
             Block(dim=dim, head_dim=head_dim, mlp_ratio=mlp_ratio, use_bias=use_bias, pos_encoding=pos_encoding) 
             for _ in range(depth)
+=======
+            Block(dim=dim, head_dim=head_dim, mlp_ratio=mlp_ratio, use_bias=use_bias,
+                  use_swiglu=use_swiglu, residual_scaling=residual_scaling, residual_alpha=_alpha(i))
+            for i in range(depth)
+>>>>>>> feat/combined_experiments
         ])
     
     def forward(self, x: torch.Tensor, mask: Optional[torch.Tensor] = None, positions: Optional[torch.Tensor] = None) -> torch.Tensor:
@@ -438,6 +547,7 @@ class TransformerDecoderTrunk(nn.Module):
         head_dim: Dimension of each attention head
         mlp_ratio: Ratio of MLP hidden dimension to transformer dimension
         use_bias: Whether to include bias in the QKV, attention output projection and MLP layers
+        residual_scaling: Same options as TransformerTrunk.
     """
     def __init__(
         self,
@@ -446,14 +556,32 @@ class TransformerDecoderTrunk(nn.Module):
             head_dim: int = 64,
             mlp_ratio: float = 4.0,
             use_bias: bool = False,
+<<<<<<< feat/rope_alibi_experiment
             pos_encoding: str = "none",
+=======
+            use_swiglu: bool = False,
+            residual_scaling: str = 'none',
+>>>>>>> feat/combined_experiments
         ):
         super().__init__()
 
+        def _alpha(layer_idx: int) -> float:
+            if residual_scaling == 'fixed_alpha':
+                return 1.0 / math.sqrt(depth)
+            elif residual_scaling == 'depth_scaled':
+                return 1.0 / math.sqrt(layer_idx + 1)
+            return 1.0
+
         # Create a list of transformer decoder blocks and wrap inside nn.ModuleList
         self.blocks = nn.ModuleList([
+<<<<<<< feat/rope_alibi_experiment
             DecoderBlock(dim=dim, head_dim=head_dim, mlp_ratio=mlp_ratio, use_bias=use_bias, pos_encoding=pos_encoding)
             for _ in range(depth)
+=======
+            DecoderBlock(dim=dim, head_dim=head_dim, mlp_ratio=mlp_ratio, use_bias=use_bias,
+                         use_swiglu=use_swiglu, residual_scaling=residual_scaling, residual_alpha=_alpha(i))
+            for i in range(depth)
+>>>>>>> feat/combined_experiments
         ])
     
     def forward(
