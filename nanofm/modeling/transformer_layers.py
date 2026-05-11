@@ -25,10 +25,10 @@ import torch.nn.functional as F
 from einops import rearrange, repeat
 
 def rotate_half(x):
-    x1 = x[..., ::2]
-    x2 = x[..., 1::2]
-    x_rot = torch.stack((-x2, x1), dim=-1)
-    return rearrange(x_rot, "... d r -> ... (d r)")
+    half = x.shape[-1] // 2
+    x1 = x[..., :half]
+    x2 = x[..., half:]
+    return torch.cat((-x2, x1), dim=-1)
 
 
 def apply_rope(q, k, positions):
@@ -74,10 +74,8 @@ def apply_rope(q, k, positions):
     sin = sin.unsqueeze(1)
     cos = cos.unsqueeze(1)
 
-    # Duplicate each frequency pair:
-    # [B,1,L,D/2] -> [B,1,L,D]
-    sin = repeat(sin, "b h l d -> b h l (d 2)")
-    cos = repeat(cos, "b h l d -> b h l (d 2)")
+    sin = torch.cat([sin, sin], dim=-1)  
+    cos = torch.cat([cos, cos], dim=-1)
 
     # Apply rotary transformation
     q = (q * cos) + (rotate_half(q) * sin)
@@ -101,15 +99,24 @@ def get_alibi_slopes(n_heads):
         )
 
 
-def build_alibi_bias(n_heads, query_len, key_len, device):
-    slopes = torch.tensor(get_alibi_slopes(n_heads), device=device)
+def build_alibi_bias(n_heads, positions_q, positions_k, device):
+    """
+    positions_q: [B, Lq] ou [Lq] — positions réelles des queries
+    positions_k: [B, Lk] ou [Lk] — positions réelles des keys
+    """
+    slopes = torch.tensor(get_alibi_slopes(n_heads), device=device, dtype=torch.float32)
 
-    i = torch.arange(query_len, device=device)
-    j = torch.arange(key_len, device=device)
+    # [B, Lq, 1] - [B, 1, Lk] -> [B, Lq, Lk]
+    if positions_q.dim() == 1:
+        positions_q = positions_q.unsqueeze(0)
+        positions_k = positions_k.unsqueeze(0)
 
-    rel = (i[:, None] - j[None, :]).clamp(min=0)
+    rel = (positions_q.unsqueeze(-1).float() - positions_k.unsqueeze(-2).float()).abs()
+    # rel: [B, Lq, Lk]
 
-    bias = -slopes[:, None, None] * rel[None, :, :]
+    # slopes: [H] -> [1, H, 1, 1]
+    bias = -slopes[None, :, None, None] * rel.unsqueeze(1)
+    # bias: [B, H, Lq, Lk]
     return bias
 
 
@@ -211,8 +218,9 @@ class Attention(nn.Module):
         # ALIBI
         # ======================
         if self.pos_encoding == "alibi":
-            bias = build_alibi_bias(self.num_heads, L, L, x.device)
-            attn = attn + bias.unsqueeze(0)
+            assert positions is not None, "ALiBi requires positions"
+            bias = build_alibi_bias(self.num_heads, positions, positions, x.device)
+            attn = attn + bias  
 
         if mask is not None:
             mask = rearrange(mask, "b n m -> b 1 n m") # Unsqueeze for multi-head attention
@@ -280,10 +288,9 @@ class CrossAttention(nn.Module):
         attn = q @ k.transpose(-1, -2)
         attn = attn * self.scale
 
-        # ALiBi
+        # ALiBi disabled for cross-attention
         if self.pos_encoding == "alibi":
-            bias = build_alibi_bias(self.num_heads, N, M, x.device)
-            attn = attn + bias.unsqueeze(0) 
+            pass  # ALiBi non applicable en cross-attention 
 
         if mask is not None:
             mask = rearrange(mask, "b n m -> b 1 n m") # Unsqueeze for multi-head attention
