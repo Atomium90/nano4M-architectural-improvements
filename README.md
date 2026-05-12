@@ -142,7 +142,7 @@ done
 bash scripts/eval_job.sh rope_v1 --skip_fid
 
 # Override FID sample count
-bash scripts/eval_job.sh rope_v1 --fid_samples 200
+bash scripts/eval_job.sh rope_v1 --fid_samples 2000
 ```
 
 Both scripts resolve `checkpoint` and `config` automatically from `<EXP_NAME>`,
@@ -153,11 +153,31 @@ The report is saved to **`eval/<EXP_NAME>/report.log`** and contains:
 - Model info (param count, architecture flags)
 - Validation cross-entropy loss — per-token and per-modality
 - Perplexity
-- **FID score** on generated RGB images (conditioned on `scene_desc` by default)
+- **FID score** on the full validation set (capped at 50 000 images, conditioned on `scene_desc`)
 - Throughput (tokens/sec), peak GPU memory, gradient norm
 
 SLURM logs → `slurm_logs/<EXP_NAME>_eval_<jobid>.out/.err`
 
+### Compute-fair evaluation
+ 
+Models with more parameters (deeper variants, SwiGLU) use more FLOPs per step.
+To compare fairly at equal training compute, evaluate an intermediate checkpoint:
+ 
+```
+fair_tokens ≈ 5000M × (N_baseline / N_variant)
+```
+ 
+Pass the target checkpoint explicitly — it overrides the auto-resolved final one:
+ 
+```bash
+# depth16 (~180M params): fair ≈ 5000 × (110/180) ≈ 3050M tokens → step ~23000
+bash scripts/eval_job.sh depth16_v1 \
+    --checkpoint /scratch/$USER/nano4M/depth16_v1/checkpoint-22889.safetensors
+```
+ 
+> **Keep intermediate checkpoints** (`save_ckpt_freq: 1000` in YAML) until all
+> compute-fair evals are done — do not run `clean.sh models` before that.
+ 
 > **Cosmos tokenizer**: auto-downloaded on first run to
 > `/tmp/nvidia_<your_username>/Cosmos-0.1-Tokenizer-DI16x16` (private per user,
 > no permission conflicts). Pass `--tokenizer_dir` to override.

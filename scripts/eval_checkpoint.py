@@ -23,7 +23,7 @@ Options:
     --device        STR     cuda | cpu (default: cuda if available)
 
     # FID-specific
-    --fid_samples   INT     Number of images to generate for FID (default: 500)
+    --fid_samples   INT     Number of images to generate for FID (default: 50000)
     --fid_steps     INT     ROAR decoding steps per generation (default: 64)
     --fid_temp      FLOAT   Sampling temperature (default: 0.7)
     --fid_top_p     FLOAT   Nucleus sampling p (default: 0.9)
@@ -70,8 +70,8 @@ def get_args():
     p.add_argument("--device",     default="cuda" if torch.cuda.is_available() else "cpu")
 
     # FID options
-    p.add_argument("--fid_samples",   type=int,   default=500,
-                   help="Number of images to generate for FID (default: 500)")
+    p.add_argument("--fid_samples",   type=int,   default=50000,
+                   help="Number of images to generate for FID (default: 50000)")
     p.add_argument("--fid_steps",     type=int,   default=64,
                    help="ROAR decoding steps for generation (default: 64)")
     p.add_argument("--fid_temp",      type=float, default=0.7,
