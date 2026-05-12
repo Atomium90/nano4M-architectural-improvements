@@ -99,7 +99,7 @@ See [`scripts/submit_job.sh`](scripts/submit_job.sh) documentation for more deta
 | num_gpus    | GPUs to allocate (default: `2`)                  | `4`                              |
 | wandb_key   | WandB API key (optional)                         | `$WANDB_API_KEY`                 |
  
-Outputs → `./outputs/<run_name>/` 
+Outputs → `./outputs/<run_name>/`  
 SLURM logs → `./slurm_logs/<run_name>_<jobid>.out`  
 WandB → `epfl-com304-group16 / COM304_nano4M / <run_name>`
 
@@ -145,7 +145,8 @@ bash scripts/eval_job.sh rope_v1 --skip_fid
 bash scripts/eval_job.sh rope_v1 --fid_samples 200
 ```
 
-Both scripts resolve `checkpoint` and `config` automatically from `<EXP_NAME>`.
+Both scripts resolve `checkpoint` and `config` automatically from `<EXP_NAME>`,
+looking in `/scratch/$USER/nano4M/<EXP_NAME>/` first, then `outputs/<EXP_NAME>/` as fallback.
 
 The report is saved to **`eval/<EXP_NAME>/report.log`** and contains:
 
@@ -161,6 +162,21 @@ SLURM logs → `slurm_logs/<EXP_NAME>_eval_<jobid>.out/.err`
 > `/tmp/nvidia_<your_username>/Cosmos-0.1-Tokenizer-DI16x16` (private per user,
 > no permission conflicts). Pass `--tokenizer_dir` to override.
 
+---
+ 
+## Storage layout
+ 
+Checkpoints are written to scratch to avoid filling the 100 GB home quota:
+ 
+```
+/scratch/$USER/nano4M/<exp_name>/   ← checkpoints  (scratch, auto-wiped every 30 days)
+eval/<exp_name>/report.log          ← eval reports  (home, small)
+slurm_logs/                         ← SLURM logs    (home, small)
+```
+ 
+No configuration needed — `/scratch/$USER` exists on the cluster and the
+`nano4M/` subfolder is created automatically on first `submit_job.sh` run.
+ 
 ---
 
 ## Environment setup

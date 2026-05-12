@@ -6,7 +6,7 @@
 #
 # Examples:
 #   bash scripts/submit_job.sh cfgs/nano4M/variants/init_he.yaml
-#       → auto-names: init_he_v1 (or _v2 if v1 already exists in outputs/)
+#       → auto-names: init_he_v1 (or _v2 if v1 already exists in scratch)
 #
 #   bash scripts/submit_job.sh cfgs/nano4M/variants/init_he.yaml init_he_custom
 #       → uses the given name as-is (default partition=l40s, num_gpus=2, no wandb)
@@ -19,25 +19,31 @@
 #
 # What it does:
 #   - Derives EXP_NAME automatically if not given (init_he_v1, _v2, ...)
-#   - Passes --run_name to run_training.py, which auto-sets output_dir and wandb_run_name
+#   - Writes checkpoints to /scratch/$USER/nano4M/<EXP_NAME>/ (auto-created)
 #   - Each experiment gets its own output folder and its own wandb run (no overrides)
 #   - SLURM logs go to slurm_logs/<EXP_NAME>_<jobid>.out/.err
 
 set -euo pipefail
 
-CONFIG="${1:?Error: missing config file. Usage: submit_job.sh <config> [exp_name] [num_gpus] [wandb_key] [partition]}"
+CONFIG="${1:?Error: missing config file. Usage: submit_job.sh <config> [exp_name] [partition] [num_gpus] [wandb_key]}"
 PARTITION="${3:-l40s}"
 NUM_GPUS="${4:-2}"
 WANDB="${5:-}"
 
-# ── Auto-versioning ────────────────────────────────────────────────────────────
+# -- Scratch storage ------------------------------------------------------------
+# Checkpoints go to scratch to avoid filling the home quota (100 GB limit).
+# /scratch/$USER exists on the cluster; we just create the nano4M subfolder.
+SCRATCH_BASE="/scratch/${USER}/nano4M"
+mkdir -p "${SCRATCH_BASE}"
+
+# -- Auto-versioning ------------------------------------------------------------
 # If EXP_NAME is not provided (or is empty), derive it from the config filename
-# and pick the next available _vN suffix by scanning outputs/.
+# and pick the next available _vN suffix by scanning the scratch output dir.
 
 if [[ -z "${2:-}" ]]; then
     BASE="$(basename "${CONFIG}" .yaml)"
     N=1
-    while [[ -d "outputs/${BASE}_v${N}" ]]; do
+    while [[ -d "${SCRATCH_BASE}/${BASE}_v${N}" ]]; do
         N=$((N + 1))
     done
     EXP_NAME="${BASE}_v${N}"
@@ -67,14 +73,17 @@ conda activate nanofm
 
 ${WANDB:+export WANDB_API_KEY=${WANDB}}
 
+mkdir -p ${SCRATCH_BASE}/${EXP_NAME}
+
 OMP_NUM_THREADS=1 torchrun --nproc_per_node=${NUM_GPUS} run_training.py \\
     --config ${CONFIG} \\
-    --run_name ${EXP_NAME}
+    --run_name ${EXP_NAME} \\
+    --output_dir ${SCRATCH_BASE}/${EXP_NAME}
 EOF
 
 echo "✓ Submitted: ${EXP_NAME}"
 echo "  config    → ${CONFIG}"
-echo "  output    → ./outputs/${EXP_NAME}/"
+echo "  output    → ${SCRATCH_BASE}/${EXP_NAME}/"
 echo "  logs      → ./slurm_logs/${EXP_NAME}_<jobid>.out"
 echo "  wandb     → epfl-com304-group16 / COM304_nano4M / ${EXP_NAME}"
 echo "  partition → ${PARTITION}"

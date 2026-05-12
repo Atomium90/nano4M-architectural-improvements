@@ -21,7 +21,15 @@ shift   # remaining args are forwarded to eval_checkpoint.py
 
 # ── Resolve paths ─────────────────────────────────────────────────────────────
 
-CHECKPOINT="outputs/${EXP_NAME}/checkpoint-final.safetensors"
+# ── Scratch storage (mirrors submit_job.sh) ───────────────────────────────────
+SCRATCH_BASE="/scratch/${USER}/nano4M"
+
+# Prefer scratch location; fall back to local outputs/ for legacy runs
+if [[ -f "${SCRATCH_BASE}/${EXP_NAME}/checkpoint-final.safetensors" ]]; then
+    CHECKPOINT="${SCRATCH_BASE}/${EXP_NAME}/checkpoint-final.safetensors"
+else
+    CHECKPOINT="outputs/${EXP_NAME}/checkpoint-final.safetensors"
+fi
 CONFIG_DIR="cfgs/nano4M/variants"
 
 # Special case: baseline experiments always use the multiclevr config
@@ -29,38 +37,24 @@ if [[ "${EXP_NAME}" == baseline* ]]; then
     CONFIG="cfgs/nano4M/multiclevr_d6-6w512.yaml"
 fi
 
-# Config resolution: check variants/ first, then top-level cfgs/nano4M/,
-# then fall back to stripping version suffix (e.g. init_he_v1 → init_he).
-if [[ -z "${CONFIG:-}" ]]; then
-    _try_configs=(
-        "${CONFIG_DIR}/${EXP_NAME}.yaml"
-        "cfgs/nano4M/${EXP_NAME}.yaml"
-    )
+# Try to find the matching config: variants/<exp_name>.yaml, else fall back to
+# any yaml whose run_name matches, else ask the user.
+CONFIG="${CONFIG_DIR}/${EXP_NAME}.yaml"
+if [[ ! -f "${CONFIG}" ]]; then
+    # Strip trailing version suffix (e.g. rope_v1 → rope)
     BASE="${EXP_NAME%_v*}"
-    if [[ "${BASE}" != "${EXP_NAME}" ]]; then
-        _try_configs+=(
-            "${CONFIG_DIR}/${BASE}.yaml"
-            "cfgs/nano4M/${BASE}.yaml"
-        )
-    fi
-    CONFIG=""
-    for _c in "${_try_configs[@]}"; do
-        if [[ -f "${_c}" ]]; then
-            CONFIG="${_c}"
-            break
-        fi
-    done
+    CONFIG="${CONFIG_DIR}/${BASE}.yaml"
 fi
-
-if [[ -z "${CONFIG}" ]]; then
+if [[ ! -f "${CONFIG}" ]]; then
     echo "Error: could not find a config for '${EXP_NAME}'."
-    for _c in "${_try_configs[@]}"; do echo "  Tried: ${_c}"; done
-    echo "  Pass --config explicitly to eval_checkpoint.py directly."
+    echo "  Tried: ${CONFIG_DIR}/${EXP_NAME}.yaml"
+    echo "  Tried: ${CONFIG_DIR}/${BASE}.yaml"
+    echo "  Pass --config explicitly via eval_checkpoint.py directly."
     exit 1
 fi
 if [[ ! -f "${CHECKPOINT}" ]]; then
     echo "Error: checkpoint not found at '${CHECKPOINT}'."
-    echo "  Make sure the training run completed and outputs/${EXP_NAME}/ exists."
+    echo "  Checked: ${SCRATCH_BASE}/${EXP_NAME}/ and outputs/${EXP_NAME}/"
     exit 1
 fi
 
