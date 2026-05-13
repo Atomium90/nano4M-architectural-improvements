@@ -59,6 +59,7 @@ model_config:
   dec_depth: 12
   head_dim: 64
   per_modality_loss_avg: True
+  use_swiglu: True
   # Add any extra constructor args your variant class needs here
 
 train_loader_config:
