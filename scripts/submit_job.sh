@@ -30,6 +30,24 @@ PARTITION="${3:-l40s}"
 NUM_GPUS="${4:-2}"
 WANDB="${5:-}"
 
+# -- Batch size check ----------------------------------------------------------
+# batch_size is set in the YAML. We read it here and verify that
+# batch_size × num_gpus == 512 so all runs see the same number of steps.
+BATCH_SIZE=$(python3 -c "
+import yaml
+with open('${CONFIG}') as f:
+    cfg = yaml.safe_load(f)
+gv = cfg.get('global_vars', {})
+print(gv.get('batch_size', cfg.get('batch_size', 256)))
+")
+TOTAL_BATCH=$(( BATCH_SIZE * NUM_GPUS ))
+if [[ ${TOTAL_BATCH} -ne 512 ]]; then
+    echo "Error: batch_size=${BATCH_SIZE} × num_gpus=${NUM_GPUS} = ${TOTAL_BATCH} ≠ 512."
+    echo "  → Use $(( 512 / BATCH_SIZE )) GPU(s) for batch_size=${BATCH_SIZE}."
+    echo "  → Or set batch_size=$(( 512 / NUM_GPUS )) in the YAML for ${NUM_GPUS} GPU(s)."
+    exit 1
+fi
+
 # -- Scratch storage ------------------------------------------------------------
 # Checkpoints go to scratch to avoid filling the home quota (100 GB limit).
 # /scratch/$USER exists on the cluster; we just create the nano4M subfolder.

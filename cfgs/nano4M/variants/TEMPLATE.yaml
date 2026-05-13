@@ -14,7 +14,7 @@ run_name: auto                 # ← stays "auto" (SLURM sets the real name)
 output_dir: ./outputs/auto     # ← stays "auto" (run_training.py derives final path)
 
 global_vars:
-  batch_size: 256
+  batch_size: 256   # per-GPU — submit_job.sh ensures (num_gpus * batch_size == 512) for consistency
   modalities: ["tok_rgb@256", "tok_depth@256", "tok_normal@256", "scene_desc"]
   vocab_sizes: [64000, 64000, 64000, 50304]
   max_seq_lens: [256, 256, 256, 256]

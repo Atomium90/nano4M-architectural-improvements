@@ -184,6 +184,13 @@ def main(args):
 
     # Training phases
     args.total_batch_size = args.batch_size * args.world_size
+
+    # Enforce fixed total batch size so all runs see the same number of steps.
+    # batch_size × num_gpus must equal 512 (e.g. 256×2, 128×4, 64×8).
+    assert args.total_batch_size == 512, (
+        f"Total batch size must be 512 "
+        f"(batch_size={args.batch_size} × world_size={args.world_size} = {args.total_batch_size}). "
+    )
     num_tokens_per_iter = args.num_tokens_per_sample * args.total_batch_size
     args.total_iters = math.ceil(args.total_tokens * 1e6 / num_tokens_per_iter)
     args.warmup_iters = math.ceil(args.warmup_tokens * 1e6 / num_tokens_per_iter)
@@ -256,7 +263,7 @@ def train_loop(
         log_writer: Optional[utils.WandbLogger] = None,
         device: torch.device = torch.device('cuda'),
         dtype: torch.dtype = torch.float16,
-    ):    
+):
     model.train()
 
     metric_logger = utils.MetricLogger(delimiter='  ')
