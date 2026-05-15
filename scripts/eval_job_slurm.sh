@@ -10,51 +10,78 @@
 #   bash scripts/eval_job_slurm.sh <EXP_NAME> [--skip_fid] [extra flags]
 #
 # Examples:
-#   # Evaluate all ablations at once:
-#   for exp in baseline rope_v1 swiglu_v1 deepnorm_v1; do
-#       bash scripts/eval_job_slurm.sh $exp
-#   done
-#
-#   # Quick loss-only eval (no GPU queue pressure):
+#   bash scripts/eval_job_slurm.sh rope_v1
 #   bash scripts/eval_job_slurm.sh rope_v1 --skip_fid
-#
-#   # Override FID sample count:
 #   bash scripts/eval_job_slurm.sh rope_v1 --fid_samples 200
+#   # Compute-fair eval on an intermediate checkpoint:
+#   bash scripts/eval_job_slurm.sh depth16_v1 \
+#       --checkpoint /scratch/$USER/nano4M/depth16_v1/checkpoint-22889.safetensors \
+#       --output eval/depth16_v1_cf/report.log
 
 set -euo pipefail
 
 EXP_NAME="${1:?Error: missing experiment name. Usage: eval_job_slurm.sh <exp_name> [flags]}"
 shift   # remaining args are forwarded to eval_checkpoint.py
 
-# ── Resolve checkpoint + config (same logic as eval_job.sh) ──────────────────
-
 # ── Scratch storage (mirrors submit_job.sh) ───────────────────────────────────
 SCRATCH_BASE="/scratch/${USER}/nano4M"
 
-# Prefer scratch location; fall back to local outputs/ for legacy runs
-if [[ -f "${SCRATCH_BASE}/${EXP_NAME}/checkpoint-final.safetensors" ]]; then
+# ── Parse --checkpoint and --output overrides from extra args ─────────────────
+# Allows targeting a specific checkpoint (e.g. compute-fair eval on step-22889)
+# without the auto-resolved value shadowing validation and echo.
+CHECKPOINT_OVERRIDE=""
+OUTPUT_OVERRIDE=""
+_args=("$@")
+for i in "${!_args[@]}"; do
+    if [[ "${_args[$i]}" == "--checkpoint" ]]; then
+        CHECKPOINT_OVERRIDE="${_args[$((i+1))]}"
+    fi
+    if [[ "${_args[$i]}" == "--output" ]]; then
+        OUTPUT_OVERRIDE="${_args[$((i+1))]}"
+    fi
+done
+
+# ── Resolve checkpoint ────────────────────────────────────────────────────────
+# Prefer explicit override, then scratch, then local outputs/ for legacy runs
+if [[ -n "${CHECKPOINT_OVERRIDE}" ]]; then
+    CHECKPOINT="${CHECKPOINT_OVERRIDE}"
+elif [[ -f "${SCRATCH_BASE}/${EXP_NAME}/checkpoint-final.safetensors" ]]; then
     CHECKPOINT="${SCRATCH_BASE}/${EXP_NAME}/checkpoint-final.safetensors"
 else
     CHECKPOINT="outputs/${EXP_NAME}/checkpoint-final.safetensors"
 fi
+
+REPORT_PATH="${OUTPUT_OVERRIDE:-eval/${EXP_NAME}/report.log}"
+
+# ── Resolve config ────────────────────────────────────────────────────────────
 CONFIG_DIR="cfgs/nano4M/variants"
 
 # Special case: baseline experiments always use the multiclevr config
 if [[ "${EXP_NAME}" == baseline* ]]; then
     CONFIG="cfgs/nano4M/multiclevr_d6-6w512.yaml"
+else
+    _try_configs=(
+        "${CONFIG_DIR}/${EXP_NAME}.yaml"
+        "cfgs/nano4M/${EXP_NAME}.yaml"
+    )
+    BASE="${EXP_NAME%_v*}"
+    if [[ "${BASE}" != "${EXP_NAME}" ]]; then
+        _try_configs+=(
+            "${CONFIG_DIR}/${BASE}.yaml"
+            "cfgs/nano4M/${BASE}.yaml"
+        )
+    fi
+    CONFIG=""
+    for _c in "${_try_configs[@]}"; do
+        if [[ -f "${_c}" ]]; then CONFIG="${_c}"; break; fi
+    done
+    if [[ -z "${CONFIG}" ]]; then
+        echo "Error: could not find a config for '${EXP_NAME}'."
+        for _c in "${_try_configs[@]}"; do echo "  Tried: ${_c}"; done
+        exit 1
+    fi
 fi
 
-CONFIG="${CONFIG_DIR}/${EXP_NAME}.yaml"
-if [[ ! -f "${CONFIG}" ]]; then
-    BASE="${EXP_NAME%_v*}"
-    CONFIG="${CONFIG_DIR}/${BASE}.yaml"
-fi
-if [[ ! -f "${CONFIG}" ]]; then
-    echo "Error: could not find a config for '${EXP_NAME}'."
-    echo "  Tried: ${CONFIG_DIR}/${EXP_NAME}.yaml"
-    echo "  Tried: ${CONFIG_DIR}/${BASE}.yaml"
-    exit 1
-fi
 if [[ ! -f "${CHECKPOINT}" ]]; then
     echo "Error: checkpoint not found at '${CHECKPOINT}'."
     echo "  Checked: ${SCRATCH_BASE}/${EXP_NAME}/ and outputs/${EXP_NAME}/"
@@ -94,5 +121,5 @@ EOF
 echo "✓ Submitted eval: ${EXP_NAME}"
 echo "  checkpoint → ${CHECKPOINT}"
 echo "  config     → ${CONFIG}"
-echo "  report     → eval/${EXP_NAME}/report.log"
+echo "  report     → ${REPORT_PATH}"
 echo "  logs       → slurm_logs/${EXP_NAME}_eval_<jobid>.out"

@@ -1,0 +1,33 @@
+=================================================================
+  nano4M — Evaluation Report
+  2026-05-12 14:33:40
+=================================================================
+
+  checkpoint : outputs/alibi_v1/checkpoint-final.safetensors
+  config     : cfgs/nano4M/variants/alibi.yaml
+
+── MODEL ────────────────────────────────────────────────────
+  target     : nanofm.models.fourmUpgraded.FourMUpgraded
+  params     : 109,861,888  (109.86 M)
+  enc_depth  : 6  dec_depth : 6  dim : 512
+
+── VALIDATION LOSS ──────────────────────────────────────────
+  loss       : 3.494419
+  perplexity : 32.9312
+  per modality:
+    scene_desc                     0.287783
+    tok_depth@256                  4.053040
+    tok_normal@256                 3.875115
+    tok_rgb@256                    5.761738
+
+── IMAGE QUALITY (FID) ───────────────────────────────────────
+  FID score  : 66.6802  (n=500)
+  cond. mod  : scene_desc → tok_rgb@256
+  gen steps  : 64   temp=0.7   top_p=0.9
+
+── EFFICIENCY ───────────────────────────────────────────────
+  throughput :     87,580 tok/s
+  peak GPU   :    16859.2 MB
+  grad norm  : 1.0216
+
+=================================================================

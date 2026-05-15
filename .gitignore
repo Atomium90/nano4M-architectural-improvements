@@ -16,7 +16,6 @@ __pycache__/
 
 # --- Training outputs ---
 outputs/
-eval/
 wandb/
 slurm_logs/
 checkpoints/
