@@ -95,7 +95,7 @@ mkdir -p slurm_logs
 sbatch <<EOF
 #!/bin/bash
 #SBATCH --job-name=${EXP_NAME}_eval
-#SBATCH --time=01:00:00
+#SBATCH --time=05:00:00
 #SBATCH --account=com-304
 #SBATCH --qos=com-304
 #SBATCH --gres=gpu:1
@@ -104,7 +104,7 @@ sbatch <<EOF
 #SBATCH --cpus-per-task=4
 #SBATCH --output=slurm_logs/${EXP_NAME}_eval_%j.out
 #SBATCH --error=slurm_logs/${EXP_NAME}_eval_%j.err
-#SBATCH --partition=l40s
+#SBATCH --partition=h100
 
 source /work/com-304/new_environment/anaconda3/etc/profile.d/conda.sh
 conda activate nanofm
