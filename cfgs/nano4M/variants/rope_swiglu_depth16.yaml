@@ -1,17 +1,20 @@
 # cfgs/nano4M/variants/TEMPLATE.yaml
 # ─────────────────────────────────────────────────────────────────────
 # HOW TO CREATE A NEW VARIANT
-# 1. Copy this file:  cp cfgs/nano4M/variants/TEMPLATE.yaml cfgs/nano4M/variants/my_variant.yaml
-# 2. Set run_name and output_dir to something unique (e.g. rope_v1)
-# 3. Point _target_ to your variant model class (e.g. nanofm.models.fourm_rope.FourMRoPE)
-# 4. Submit: bash scripts/submit_job.sh cfgs/nano4M/variants/my_variant.yaml rope_v1 2 $WANDB_API_KEY
+# 1. Copy this file:
+#       cp cfgs/nano4M/variants/TEMPLATE.yaml cfgs/nano4M/variants/my_variant.yaml
+# 2. Edit ONLY the model flags (pos_encoding, use_swiglu, init_type, depth, etc.)
+#    Do NOT set run_name / output_dir / wandb_run_name — they stay on "auto".
+# 3. Submit:
+#       bash scripts/submit_job.sh cfgs/nano4M/variants/my_variant.yaml
+#    SLURM will auto‑generate a unique run_name (…_v1, …_v2, …)
 # ─────────────────────────────────────────────────────────────────────
 
-run_name: auto
-output_dir: ./outputs/auto
+run_name: auto                 # ← stays "auto" (SLURM sets the real name)
+output_dir: ./outputs/auto     # ← stays "auto" (run_training.py derives final path)
 
 global_vars:
-  batch_size: 256
+  batch_size: 256   # per-GPU — submit_job.sh ensures (num_gpus * batch_size == 512) for consistency
   modalities: ["tok_rgb@256", "tok_depth@256", "tok_normal@256", "scene_desc"]
   vocab_sizes: [64000, 64000, 64000, 50304]
   max_seq_lens: [256, 256, 256, 256]
@@ -36,7 +39,7 @@ save_ckpt_freq: 1000
 log_wandb: True
 wandb_project: COM304_nano4M
 wandb_entity: epfl-com304-group16
-wandb_run_name: auto
+wandb_run_name: auto            # ← stays "auto" (run_training.py sets final name)
 
 model_config:
   _target_: nanofm.models.fourmUpgraded.FourMUpgraded
@@ -52,12 +55,13 @@ model_config:
   vocab_sizes: ${global_vars.vocab_sizes}
   max_seq_lens: ${global_vars.max_seq_lens}
   dim: 512
-  enc_depth: 6
-  dec_depth: 6
+  enc_depth: 16
+  dec_depth: 16
   head_dim: 64
   per_modality_loss_avg: True
-  use_swiglu: True
   # Add any extra constructor args your variant class needs here
+  pos_encoding: rope
+  use_swiglu: True
 
 train_loader_config:
   _target_: nanofm.data.multimodal.create_multimodal_masked_dataloader
