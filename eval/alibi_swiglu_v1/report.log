@@ -1,0 +1,33 @@
+=================================================================
+  nano4M — Evaluation Report
+  2026-05-16 18:30:09
+=================================================================
+
+  checkpoint : /scratch/picart/nano4M/alibi_swiglu_v1/checkpoint-final.safetensors
+  config     : cfgs/nano4M/variants/alibi_swiglu.yaml
+
+── MODEL ────────────────────────────────────────────────────
+  target     : nanofm.models.fourmUpgraded.FourMUpgraded
+  params     : 122,444,800  (122.44 M)
+  enc_depth  : 6  dec_depth : 6  dim : 512
+
+── VALIDATION LOSS ──────────────────────────────────────────
+  loss       : 3.457374
+  perplexity : 31.7335
+  per modality:
+    scene_desc                     0.288134
+    tok_depth@256                  3.982292
+    tok_normal@256                 3.812376
+    tok_rgb@256                    5.746693
+
+── IMAGE QUALITY (FID) ───────────────────────────────────────
+  FID score  : 39.1228  (n=5000)
+  cond. mod  : scene_desc → tok_rgb@256
+  gen steps  : 64   temp=0.7   top_p=0.9
+
+── EFFICIENCY ───────────────────────────────────────────────
+  throughput :    120,046 tok/s
+  peak GPU   :    16983.0 MB
+  grad norm  : 1.0325
+
+=================================================================
