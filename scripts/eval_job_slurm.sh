@@ -115,6 +115,7 @@ export OMP_NUM_THREADS=1
 python scripts/eval_checkpoint.py \\
     --checkpoint ${CHECKPOINT} \\
     --config     ${CONFIG} \\
+    --tokenizer_dir /scratch/${USER}/nano4M/tokenizers/Cosmos-0.1-Tokenizer-DI16x16 \\
     $@
 EOF
 
