@@ -1,0 +1,33 @@
+=================================================================
+  nano4M — Evaluation Report
+  2026-05-17 17:44:10
+=================================================================
+
+  checkpoint : /scratch/picart/nano4M/resi_scaled_depth12_v1/checkpoint-22889.safetensors
+  config     : cfgs/nano4M/variants/resi_scaled_depth12.yaml
+
+── MODEL ────────────────────────────────────────────────────
+  target     : nanofm.models.fourmUpgraded.FourMUpgraded
+  params     : 153,920,512  (153.92 M)
+  enc_depth  : 12  dec_depth : 12  dim : 512
+
+── VALIDATION LOSS ──────────────────────────────────────────
+  loss       : 3.587622
+  perplexity : 36.1480
+  per modality:
+    scene_desc                     0.292500
+    tok_depth@256                  4.125293
+    tok_normal@256                 4.049791
+    tok_rgb@256                    5.882903
+
+── IMAGE QUALITY (FID) ───────────────────────────────────────
+  FID score  : 42.0796  (n=5000)
+  cond. mod  : scene_desc → tok_rgb@256
+  gen steps  : 64   temp=0.7   top_p=0.9
+
+── EFFICIENCY ───────────────────────────────────────────────
+  throughput :     69,045 tok/s
+  peak GPU   :    17224.3 MB
+  grad norm  : 0.8523
+
+=================================================================

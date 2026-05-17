@@ -1,0 +1,33 @@
+=================================================================
+  nano4M — Evaluation Report
+  2026-05-17 23:56:35
+=================================================================
+
+  checkpoint : /scratch/picart/nano4M/rope_swiglu_depth16_v1/checkpoint-15259.safetensors
+  config     : cfgs/nano4M/variants/rope_swiglu_depth16.yaml
+
+── MODEL ────────────────────────────────────────────────────
+  target     : nanofm.models.fourmUpgraded.FourMUpgraded
+  params     : 216,847,360  (216.85 M)
+  enc_depth  : 16  dec_depth : 16  dim : 512
+
+── VALIDATION LOSS ──────────────────────────────────────────
+  loss       : 3.652929
+  perplexity : 38.5875
+  per modality:
+    scene_desc                     0.290644
+    tok_depth@256                  4.243367
+    tok_normal@256                 4.118629
+    tok_rgb@256                    5.959077
+
+── IMAGE QUALITY (FID) ───────────────────────────────────────
+  FID score  : 53.0488  (n=5000)
+  cond. mod  : scene_desc → tok_rgb@256
+  gen steps  : 64   temp=0.7   top_p=0.9
+
+── EFFICIENCY ───────────────────────────────────────────────
+  throughput :     65,141 tok/s
+  peak GPU   :    17719.5 MB
+  grad norm  : 0.8377
+
+=================================================================
