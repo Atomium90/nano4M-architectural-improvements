@@ -1,33 +1,33 @@
 =================================================================
   nano4M — Evaluation Report
-  2026-05-17 12:31:09
+  2026-05-15 22:13:27
 =================================================================
 
-  checkpoint : outputs/residual_fixed_v1/checkpoint-final.safetensors
-  config     : cfgs/nano4M/variants/residual_fixed.yaml
+  checkpoint : /scratch/picart/nano4M/depth16_v1/checkpoint-final.safetensors
+  config     : cfgs/nano4M/variants/depth16.yaml
 
 ── MODEL ────────────────────────────────────────────────────
   target     : nanofm.models.fourmUpgraded.FourMUpgraded
-  params     : 109,861,888  (109.86 M)
-  enc_depth  : 6  dec_depth : 6  dim : 512
+  params     : 183,292,928  (183.29 M)
+  enc_depth  : 16  dec_depth : 16  dim : 512
 
 ── VALIDATION LOSS ──────────────────────────────────────────
-  loss       : 3.531590
-  perplexity : 34.1783
+  loss       : 3.430519
+  perplexity : 30.8927
   per modality:
-    scene_desc                     0.278889
-    tok_depth@256                  4.087803
-    tok_normal@256                 3.954056
-    tok_rgb@256                    5.805614
+    scene_desc                     0.283375
+    tok_depth@256                  3.943765
+    tok_normal@256                 3.793455
+    tok_rgb@256                    5.701481
 
 ── IMAGE QUALITY (FID) ───────────────────────────────────────
-  FID score  : 41.5393  (n=5000)
+  FID score  : 63.2560  (n=5000)
   cond. mod  : scene_desc → tok_rgb@256
   gen steps  : 64   temp=0.7   top_p=0.9
 
 ── EFFICIENCY ───────────────────────────────────────────────
-  throughput :     79,223 tok/s
-  peak GPU   :    16883.0 MB
-  grad norm  : 0.8739
+  throughput :     77,150 tok/s
+  peak GPU   :    17452.5 MB
+  grad norm  : 1.2640
 
 =================================================================

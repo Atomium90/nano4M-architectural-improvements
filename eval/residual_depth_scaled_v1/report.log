@@ -1,6 +1,6 @@
 =================================================================
   nano4M — Evaluation Report
-  2026-05-08 09:48:40
+  2026-05-17 11:32:26
 =================================================================
 
   checkpoint : outputs/residual_depth_scaled_v1/checkpoint-final.safetensors
@@ -12,22 +12,22 @@
   enc_depth  : 6  dec_depth : 6  dim : 512
 
 ── VALIDATION LOSS ──────────────────────────────────────────
-  loss       : 3.515345
-  perplexity : 33.6275
+  loss       : 3.512768
+  perplexity : 33.5410
   per modality:
-    scene_desc                     0.286723
-    tok_depth@256                  4.061002
-    tok_normal@256                 3.917139
-    tok_rgb@256                    5.796515
+    scene_desc                     0.288886
+    tok_depth@256                  4.054190
+    tok_normal@256                 3.913176
+    tok_rgb@256                    5.794821
 
 ── IMAGE QUALITY (FID) ───────────────────────────────────────
-  FID score  : 62.5664  (n=500)
+  FID score  : 38.4262  (n=5000)
   cond. mod  : scene_desc → tok_rgb@256
   gen steps  : 64   temp=0.7   top_p=0.9
 
 ── EFFICIENCY ───────────────────────────────────────────────
-  throughput :     92,726 tok/s
-  peak GPU   :    16859.2 MB
-  grad norm  : 1.0917
+  throughput :     83,844 tok/s
+  peak GPU   :    16883.0 MB
+  grad norm  : 0.9264
 
 =================================================================
