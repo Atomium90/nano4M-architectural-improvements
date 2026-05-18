@@ -1,0 +1,33 @@
+=================================================================
+  nano4M — Evaluation Report
+  2026-05-16 21:19:03
+=================================================================
+
+  checkpoint : /scratch/jballi/nano4M/swiglu_depth12/checkpoint-final.safetensors
+  config     : cfgs/nano4M/variants/swiglu_depth12.yaml
+
+── MODEL ────────────────────────────────────────────────────
+  target     : nanofm.models.fourmUpgraded.FourMUpgraded
+  params     : 179,086,336  (179.09 M)
+  enc_depth  : 12  dec_depth : 12  dim : 512
+
+── VALIDATION LOSS ──────────────────────────────────────────
+  loss       : 3.345975
+  perplexity : 28.3882
+  per modality:
+    scene_desc                     0.276535
+    tok_depth@256                  3.819722
+    tok_normal@256                 3.691400
+    tok_rgb@256                    5.596244
+
+── IMAGE QUALITY (FID) ───────────────────────────────────────
+  FID score  : 39.1230  (n=5000)
+  cond. mod  : scene_desc → tok_rgb@256
+  gen steps  : 64   temp=0.7   top_p=0.9
+
+── EFFICIENCY ───────────────────────────────────────────────
+  throughput :     50,665 tok/s
+  peak GPU   :    17400.5 MB
+  grad norm  : error (CUDA out of memory. Tried to allocate 7.81 GiB. GPU 0 has a total capacity of 44.42 GiB of which 3.85 GiB is free. Including non-PyTorch memory, this process has 40.57 GiB memory in use. Of the allocated memory 39.87 GiB is allocated by PyTorch, and 207.80 MiB is reserved by PyTorch but unallocated. If reserved but unallocated memory is large try setting PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True to avoid fragmentation.  See documentation for Memory Management  (https://pytorch.org/docs/stable/notes/cuda.html#environment-variables))
+
+=================================================================

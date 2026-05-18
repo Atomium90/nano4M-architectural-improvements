@@ -1,0 +1,33 @@
+=================================================================
+  nano4M — Evaluation Report
+  2026-05-17 21:14:14
+=================================================================
+
+  checkpoint : /scratch/jballi/nano4M/swiglu_depth8/checkpoint-30519.safetensors
+  config     : cfgs/nano4M/variants/swiglu_depth8.yaml
+
+── MODEL ────────────────────────────────────────────────────
+  target     : nanofm.models.fourmUpgraded.FourMUpgraded
+  params     : 141,325,312  (141.33 M)
+  enc_depth  : 8  dec_depth : 8  dim : 512
+
+── VALIDATION LOSS ──────────────────────────────────────────
+  loss       : 3.451548
+  perplexity : 31.5492
+  per modality:
+    scene_desc                     0.281949
+    tok_depth@256                  3.987117
+    tok_normal@256                 3.846581
+    tok_rgb@256                    5.690545
+
+── IMAGE QUALITY (FID) ───────────────────────────────────────
+  FID score  : 43.2476  (n=5000)
+  cond. mod  : scene_desc → tok_rgb@256
+  gen steps  : 64   temp=0.7   top_p=0.9
+
+── EFFICIENCY ───────────────────────────────────────────────
+  throughput :     69,274 tok/s
+  peak GPU   :    17129.1 MB
+  grad norm  : 0.9502
+
+=================================================================
