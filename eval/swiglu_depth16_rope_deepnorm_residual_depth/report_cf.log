@@ -1,9 +1,9 @@
 =================================================================
   nano4M — Evaluation Report
-  2026-05-18 12:42:56
+  2026-05-20 12:03:50
 =================================================================
 
-  checkpoint : /scratch/jballi/nano4M/swiglu_depth16_rope_deepnorm_residual_depth/checkpoint-22889.safetensors
+  checkpoint : /scratch/jballi/nano4M/swiglu_depth16_rope_deepnorm_residual_depth/checkpoint-15259.safetensors
   config     : cfgs/nano4M/variants/swiglu_depth16_rope_deepnorm_residual_depth.yaml
 
 ── MODEL ────────────────────────────────────────────────────
@@ -12,22 +12,22 @@
   enc_depth  : 16  dec_depth : 16  dim : 512
 
 ── VALIDATION LOSS ──────────────────────────────────────────
-  loss       : 3.447887
-  perplexity : 31.4339
+  loss       : 3.625872
+  perplexity : 37.5575
   per modality:
-    scene_desc                     0.281345
-    tok_depth@256                  3.979496
-    tok_normal@256                 3.825119
-    tok_rgb@256                    5.705588
+    scene_desc                     0.298055
+    tok_depth@256                  4.189181
+    tok_normal@256                 4.109581
+    tok_rgb@256                    5.906672
 
 ── IMAGE QUALITY (FID) ───────────────────────────────────────
-  FID score  : 36.0263  (n=5000)
+  FID score  : 44.0721  (n=5000)
   cond. mod  : scene_desc → tok_rgb@256
   gen steps  : 64   temp=0.7   top_p=0.9
 
 ── EFFICIENCY ───────────────────────────────────────────────
-  throughput :     52,749 tok/s
+  throughput :     33,485 tok/s
   peak GPU   :    17719.5 MB
-  grad norm  : 0.9051
+  grad norm  : 0.7160
 
 =================================================================
