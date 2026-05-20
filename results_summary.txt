@@ -43,15 +43,15 @@ rope_v1/report.log                                 final        109.86   3.4917 
 swiglu_depth12/report.log                          final        179.09   3.3460     -0.1526   28.388    39.12    5.5962    3.8197    3.6914
 swiglu_depth12/report_cf.log                  ✓    step-228…    179.09   3.4961               32.987    48.57    5.7474    4.0269    3.9294
 swiglu_depth16/report.log                          final        216.85   3.3133     -0.1852   27.477    38.89    5.5623    3.7908    3.6253
-swiglu_depth16/report_cf.log                  ✓    step-228…    216.85   3.5080               33.383    47.31    5.7808    4.0708    3.8983
+swiglu_depth16/report_cf.log                  ✓    step-152…    216.85   3.6669               39.131    70.94    5.9924    4.2814    4.1022
 swiglu_depth16_residual_depth/report.log           final        216.85   3.3141     -0.1845   27.498    30.53    5.5462    3.7864    3.6488
-swiglu_depth16_residual_depth/report_cf.log   ✓    step-228…    216.85   3.4859               32.652    38.10    5.7619    4.0267    3.8674
+swiglu_depth16_residual_depth/report_cf.log   ✓    step-152…    216.85   3.6476               38.384    48.24    5.9661    4.2238    4.1130
 swiglu_depth16_residual_depth_deepnorm/repo…       final        216.85   3.2860     -0.2126   26.735    29.16    5.4947    3.7806    3.5982
-swiglu_depth16_residual_depth_deepnorm/repo…  ✓    step-228…    216.85   3.4768               32.355    39.38    5.7531    4.0159    3.8625
+swiglu_depth16_residual_depth_deepnorm/repo…  ✓    step-152…    216.85   3.6301               37.718    48.93    5.9067    4.2243    4.0985
 swiglu_depth16_rope_deepnorm/report.log            final        216.85   3.3161     -0.1824   27.554    32.09    5.5292    3.8193    3.6412
-swiglu_depth16_rope_deepnorm/report_cf.log    ✓    step-228…    216.85   3.4795               32.442    40.41    5.7502    4.0331    3.8602
+swiglu_depth16_rope_deepnorm/report_cf.log    ✓    step-152…    216.85   3.6432               38.215    52.30    5.9244    4.2359    4.1214
 swiglu_depth16_rope_deepnorm_residual_depth…       final        216.85   3.3101     -0.1885   27.388    29.60    5.5191    3.8026    3.6509
-swiglu_depth16_rope_deepnorm_residual_depth…  ✓    step-228…    216.85   3.4479               31.434    36.03    5.7056    3.9795    3.8251
+swiglu_depth16_rope_deepnorm_residual_depth…  ✓    step-152…    216.85   3.6259               37.557    44.07    5.9067    4.1892    4.1096
 swiglu_depth8/report.log                           final        141.33   3.4118     -0.0868   30.319    40.86    5.6446    3.9493    3.7675
 swiglu_depth8/report_cf.log                   ✓    step-305…    141.33   3.4515               31.549    43.25    5.6905    3.9871    3.8466
 swiglu_v1/report.log                               final        122.44   3.4459     -0.0527   31.370    59.70    5.7118    3.9812    3.8120
@@ -98,15 +98,15 @@ rope_v1/report.log                                 final       3.4917       0.28
 swiglu_depth12/report.log                          final       3.3460       0.2765     5.5962     3.8197      3.6914
 swiglu_depth12/report_cf.log                  ✓    step-228…   3.4961       0.2807     5.7474     4.0269      3.9294
 swiglu_depth16/report.log                          final       3.3133       0.2750     5.5623     3.7908      3.6253
-swiglu_depth16/report_cf.log                  ✓    step-228…   3.5080       0.2823     5.7808     4.0708      3.8983
+swiglu_depth16/report_cf.log                  ✓    step-152…   3.6669       0.2916     5.9924     4.2814      4.1022
 swiglu_depth16_residual_depth/report.log           final       3.3141       0.2751     5.5462     3.7864      3.6488
-swiglu_depth16_residual_depth/report_cf.log   ✓    step-228…   3.4859       0.2876     5.7619     4.0267      3.8674
+swiglu_depth16_residual_depth/report_cf.log   ✓    step-152…   3.6476       0.2876     5.9661     4.2238      4.1130
 swiglu_depth16_residual_depth_deepnorm/repo…       final       3.2860       0.2705     5.4947     3.7806      3.5982
-swiglu_depth16_residual_depth_deepnorm/repo…  ✓    step-228…   3.4768       0.2756     5.7531     4.0159      3.8625
+swiglu_depth16_residual_depth_deepnorm/repo…  ✓    step-152…   3.6301       0.2910     5.9067     4.2243      4.0985
 swiglu_depth16_rope_deepnorm/report.log            final       3.3161       0.2748     5.5292     3.8193      3.6412
-swiglu_depth16_rope_deepnorm/report_cf.log    ✓    step-228…   3.4795       0.2743     5.7502     4.0331      3.8602
+swiglu_depth16_rope_deepnorm/report_cf.log    ✓    step-152…   3.6432       0.2913     5.9244     4.2359      4.1214
 swiglu_depth16_rope_deepnorm_residual_depth…       final       3.3101       0.2679     5.5191     3.8026      3.6509
-swiglu_depth16_rope_deepnorm_residual_depth…  ✓    step-228…   3.4479       0.2813     5.7056     3.9795      3.8251
+swiglu_depth16_rope_deepnorm_residual_depth…  ✓    step-152…   3.6259       0.2981     5.9067     4.1892      4.1096
 swiglu_depth8/report.log                           final       3.4118       0.2857     5.6446     3.9493      3.7675
 swiglu_depth8/report_cf.log                   ✓    step-305…   3.4515       0.2819     5.6905     3.9871      3.8466
 swiglu_v1/report.log                               final       3.4459       0.2784     5.7118     3.9812      3.8120
@@ -153,15 +153,15 @@ rope_v1/report.log                                 final                122,221 
 swiglu_depth12/report.log                          final                 50,665       17400.5           —
 swiglu_depth12/report_cf.log                  ✓    step-228…             86,158       17424.3      0.9442
 swiglu_depth16/report.log                          final                 68,095       17719.5      1.1548
-swiglu_depth16/report_cf.log                  ✓    step-228…             54,999       17719.5      0.9636
+swiglu_depth16/report_cf.log                  ✓    step-152…             63,989       17719.5      0.9645
 swiglu_depth16_residual_depth/report.log           final                 52,296       17719.5      0.9661
-swiglu_depth16_residual_depth/report_cf.log   ✓    step-228…             50,167       17719.5      0.9048
+swiglu_depth16_residual_depth/report_cf.log   ✓    step-152…             54,536       17719.5      0.7488
 swiglu_depth16_residual_depth_deepnorm/repo…       final                 55,342       17719.5      0.9628
-swiglu_depth16_residual_depth_deepnorm/repo…  ✓    step-228…             58,980       17719.5      0.7648
+swiglu_depth16_residual_depth_deepnorm/repo…  ✓    step-152…             34,203       17719.5      0.7131
 swiglu_depth16_rope_deepnorm/report.log            final                 65,623       17719.5      0.9592
-swiglu_depth16_rope_deepnorm/report_cf.log    ✓    step-228…             42,875       17719.5      0.8921
+swiglu_depth16_rope_deepnorm/report_cf.log    ✓    step-152…             51,300       17719.5      0.7113
 swiglu_depth16_rope_deepnorm_residual_depth…       final                 65,618       17719.5      0.8876
-swiglu_depth16_rope_deepnorm_residual_depth…  ✓    step-228…             52,749       17719.5      0.9051
+swiglu_depth16_rope_deepnorm_residual_depth…  ✓    step-152…             33,485       17719.5      0.7160
 swiglu_depth8/report.log                           final                 72,484       17105.3      1.1196
 swiglu_depth8/report_cf.log                   ✓    step-305…             69,274       17129.1      0.9502
 swiglu_v1/report.log                               final                 66,738       16959.2      0.9171
