@@ -1,0 +1,8 @@
+label,exp,report,checkpoint,params_m,loss,perplexity,fid,tok_rgb,tok_depth,tok_normal,throughput,peak_gpu_mb,grad_norm
+Baseline,baseline_v1,report.log,final,109.86,3.49857,33.0681,47.2028,5.798024,4.041777,3.874879,74993,16859.2,0.9915
+SwiGLU,swiglu_v1,report_cf.log,step-30519,122.44,3.478522,32.4118,37.7079,5.751195,4.010133,3.868809,75136,16959.2,0.8605
+ALiBi + SwiGLU,alibi_swiglu_v1,report_cf.log,step-30519,122.44,3.486594,32.6745,37.7159,5.744893,4.025368,3.887541,113124,16983.0,0.9645
+RoPE + SwiGLU,rope_swiglu_v1,report_cf.log,step-30519,122.44,3.466468,32.0235,39.7195,5.702043,4.035517,3.85589,75193,16983.0,0.9127
+SwiGLU depth-8,swiglu_depth8,report_cf.log,step-30519,141.33,3.451548,31.5492,43.2476,5.690545,3.987117,3.846581,69274,17129.1,0.9502
+Residual-scaled depth-16,resi_scaled_depth16_v1,report_cf.log,step-22889,183.29,3.563082,35.2718,44.8172,5.85171,4.122049,3.993902,58941,17452.5,0.7463
+Combined depth-16,swiglu_depth16_residual_depth_deepnorm,report_cf.log,step-15259,216.85,3.630146,37.7183,48.9312,5.906696,4.224336,4.098522,34203,17719.5,0.7131
