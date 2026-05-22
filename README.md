@@ -3,6 +3,8 @@
 > COM-304 project | EPFL VILab
 > Edouard Fousson · Thomas Picart · Jonathan Balli
 
+**Pretrained checkpoints**: [huggingface.co/Atomium90/nano4M-architecture-ablations](https://huggingface.co/Atomium90/nano4M-architecture-ablations)
+
 ---
 
 ## Project overview
