@@ -5,7 +5,9 @@
 
 **Pretrained checkpoints** → [huggingface.co/Atomium90/nano4M-architecture-ablations](https://huggingface.co/Atomium90/nano4M-architecture-ablations)
 
-We systematically ablate five architectural modifications to the [nano4M](https://github.com/EPFL-VILAB/com-304-FM-project-2026) baseline Transformer trained on multimodal CLEVR (RGB, depth, normals, captions). The best combined model achieves **loss 3.286** and **FID 29.2** vs the baseline's 3.499 / 47.2.
+We systematically ablate five architectural modifications to the [nano4M](https://github.com/EPFL-VILAB/com-304-FM-project-2026) baseline Transformer trained on multimodal CLEVR (RGB, depth, normals, captions). 
+The best combined model achieves **loss 3.286** and **FID 29.2** vs the baseline's 3.499 / 47.2.  
+Read the [extension proposal](report/extension-proposal.pdf) and [final report](report/final-report.pdf) for the full analysis.
 
 ---
 
@@ -174,7 +176,8 @@ python scripts/compile_results.py
 | **SwiGLU + D16 + ResScale + DeepNorm** | **217M** | **3.286** | **−0.213** | **29.2** |
 
 All 30 checkpoints (final + compute-fair intermediate) are available on HuggingFace.  
-See [`scripts/compile_results.py`](scripts/compile_results.py) and [`results_summary.csv`](results_summary.csv) for the full table.
+See [`scripts/compile_results.py`](scripts/compile_results.py) and [`results_summary.csv`](results_summary.csv) for the full table.  
+For a detailed analysis of all experiments and findings, see [`report/final-report.pdf`](report/final-report.pdf).
 
 ---
 
