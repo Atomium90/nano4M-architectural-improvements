@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "nanofm"
 version = "1.0.0"
-description = "nano4M"
+description = "nano4M — Architectural Improvements"
 requires-python = ">=3.8"
 readme = {file = "README.md", content-type = "text/markdown"}
 dependencies = [
@@ -15,10 +15,14 @@ dependencies = [
     "mediapy",
     "loguru",
     "ipykernel",
+    "huggingface_hub",
+    "safetensors",
+    "torchmetrics[image]",
 ]
 
 [project.urls]
-"Homepage" = "https://vilab.epfl.ch"
+"Homepage"   = "https://github.com/Atomium90/nano4M-architectural-improvements"
+"Checkpoints" = "https://huggingface.co/Atomium90/nano4M-architecture-ablations"
 
 [tool.setuptools.packages.find]
 exclude = ["cfgs*", "assets*", "notebooks*"]
